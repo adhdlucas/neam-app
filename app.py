@@ -1,4 +1,3 @@
-import time
 import streamlit as st
 from google import genai
 from google.genai import types
@@ -9,12 +8,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom Styling: Executive Clean Green Palette
+# Custom Styling: Executive Green Palette
 st.markdown("""
 <style>
     .main { background-color: #f9fafb; }
     
-    /* ADHD Pacing Aid card with emerald green border */
+    /* ADHD Pacing Aid card */
     .sprint-card {
         padding: 14px 18px;
         background: #ffffff;
@@ -24,7 +23,7 @@ st.markdown("""
         box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     }
     
-    /* User chat bubble styling */
+    /* Chat bubbles */
     div[data-testid="stChatMessage"]:nth-child(even) {
         border-left: 3px solid #10b981;
         background-color: #f0fdf4;
@@ -32,6 +31,22 @@ st.markdown("""
         padding: 8px;
     }
 
+    /* Green Chat Input Outline & Focus */
+    div[data-testid="stChatInput"] {
+        border-color: #10b981 !important;
+    }
+    div[data-testid="stChatInput"] > div {
+        border: 2px solid #10b981 !important;
+        border-radius: 12px !important;
+    }
+    div[data-testid="stChatInput"] textarea:focus {
+        border-color: #059669 !important;
+        box-shadow: 0 0 0 1px #10b981 !important;
+    }
+    div[data-testid="stChatInput"] button {
+        color: #10b981 !important;
+    }
+    
     /* Primary buttons */
     button[kind="primary"], .stDownloadButton>button {
         background-color: #10b981 !important;
@@ -111,7 +126,7 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "Welcome! I'm your strategic sparring partner. Bring me your raw, messy thoughts or notes—we'll unpack them into structured leadership insights together.\n\n**Where is your head at right now with this module?**"
+            "content": "Welcome! I'm your strategic sparring partner. Bring me your raw, messy thoughts or voice notes—we'll unpack them into structured leadership insights together.\n\n**Where is your head at right now with this module?**"
         }
     ]
 
@@ -119,45 +134,50 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-user_prompt = st.chat_input("Speak your mind or type your rough idea here...")
+# --- Voice & Text Inputs ---
+audio_input = st.audio_input("🎙️ Record a quick voice thought")
+text_input = st.chat_input("Speak your mind or type your rough idea here...")
+
+user_prompt = None
+audio_content = None
+
+if audio_input is not None:
+    audio_content = types.Part.from_bytes(data=audio_input.read(), mime_type="audio/wav")
+    user_prompt = "🎙️ [Submitted voice thought]"
+
+if text_input:
+    user_prompt = text_input
 
 if user_prompt:
     st.session_state.messages.append({"role": "user", "content": user_prompt})
     with st.chat_message("user"):
         st.markdown(user_prompt)
 
-    full_prompt = f"Module Focus: {module_choice}\n\n"
+    full_context = f"Framework: {module_choice}\n\n"
     for m in st.session_state.messages[:-1]:
-        role = "Student" if m["role"] == "user" else "Sparring Partner"
-        full_prompt += f"{role}: {m['content']}\n\n"
-    full_prompt += f"Student: {user_prompt}\nSparring Partner:"
+        sender = "Student" if m["role"] == "user" else "Sparring Partner"
+        full_context += f"{sender}: {m['content']}\n\n"
+    full_context += f"Student: {user_prompt}\nSparring Partner:"
+
+    contents_payload = [audio_content, full_context] if audio_content else [full_context]
 
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         full_response = ""
-        
-        # Primary: gemini-2.0-flash-lite, Fallback: gemini-1.5-flash
-        for target_model in ["gemini-3.8-flash"]:
-            try:
-                response_stream = client.models.generate_content_stream(
-                    model=target_model,
-                    contents=full_prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_INSTRUCTION,
-                        temperature=0.7,
-                    )
+        try:
+            response_stream = client.models.generate_content_stream(
+                model="gemini-3.8-flash",
+                contents=contents_payload,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_INSTRUCTION,
+                    temperature=0.7,
                 )
-                for chunk in response_stream:
-                    if chunk.text:
-                        full_response += chunk.text
-                        message_placeholder.markdown(full_response + "▌")
-                message_placeholder.markdown(full_response)
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
-                break
-            except Exception as e:
-                err_text = str(e)
-                if target_model == "gemini-1.5-flash":
-                    message_placeholder.error(f"Error: {e}")
-                else:
-                    time.sleep(1)
-                    continue
+            )
+            for chunk in response_stream:
+                if chunk.text:
+                    full_response += chunk.text
+                    message_placeholder.markdown(full_response + "▌")
+            message_placeholder.markdown(full_response)
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
+        except Exception as e:
+            message_placeholder.error(f"Error: {e}")
