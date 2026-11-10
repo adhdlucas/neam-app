@@ -1,6 +1,5 @@
 import streamlit as st
 from google import genai
-from google.genai import types
 
 st.set_page_config(
     page_title="NEAM | Steinbeis Executive Co-Pilot",
@@ -8,7 +7,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom Styling for Reduced Cognitive Clutter
 st.markdown("""
 <style>
     .main { background-color: #f8fafc; }
@@ -23,8 +21,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-SYSTEM_INSTRUCTION = """
-# ROLE & IDENTITY
+SYSTEM_INSTRUCTION = """# ROLE & IDENTITY
 You are the "Steinbeis Creative MBA AI Sparring Partner" (NEAM). 
 Your mission is to help executive MBA students—specifically creative leaders with ADHD and executive function challenges—process course materials, clarify their thinking, and structure their assignments.
 
@@ -38,7 +35,6 @@ You are NOT a ghostwriter. You are an intellectual sounding board, cognitive sca
 5. ALWAYS end your turn with ONE concrete, low-friction question or action prompt.
 """
 
-# Retrieve API Key from Secrets or Sidebar
 api_key = st.secrets.get("GEMINI_API_KEY")
 if not api_key:
     api_key = st.sidebar.text_input("Enter Gemini API Key", type="password")
@@ -47,10 +43,8 @@ if not api_key:
     st.info("👋 Welcome! Please enter your Gemini API key in the sidebar to activate the module.")
     st.stop()
 
-# Initialize Client
 client = genai.Client(api_key=api_key)
 
-# Sidebar: Controls & Audit Trail
 with st.sidebar:
     st.title("🧠 NEAM Co-Pilot")
     st.caption("Steinbeis / Berlin School of Creative Leadership")
@@ -90,7 +84,6 @@ with st.sidebar:
         else:
             st.warning("Start a sparring session first to generate an audit log.")
 
-# Workspace Header
 st.header("Executive Strategy Sparring Workspace")
 st.caption(f"Currently grounded in: **{module_choice}** | Socratic Scaffolding Active")
 
@@ -98,26 +91,20 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "Welcome! I'm your strategic sparring partner. Bring me your raw, messy thoughts or voice notes—we'll unpack them into structured leadership insights together.\n\n**Where is your head at right now with this module?**"
+            "content": "Welcome! I'm your strategic sparring partner. Bring me your raw, messy thoughts or notes—we'll unpack them into structured leadership insights together.\n\n**Where is your head at right now with this module?**"
         }
     ]
 
-# Display Chat History
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Voice Input
 audio_data = st.audio_input("🎙️ Record a quick voice thought (optional)")
-
 user_text = st.chat_input("Speak your mind or type your rough idea here...")
 
 user_prompt = None
-audio_bytes = None
-
 if audio_data is not None:
-    audio_bytes = audio_data.read()
-    user_prompt = "🎙️ [Student submitted a voice note]"
+    user_prompt = "🎙️ [Student submitted an audio query. Please help me unpack my strategic thoughts.]"
 
 if user_text:
     user_prompt = user_text
@@ -127,36 +114,47 @@ if user_prompt:
     with st.chat_message("user"):
         st.markdown(user_prompt)
 
-    # Format history cleanly as strings for the API
-    full_prompt_text = f"Context Module: {module_choice}\n\n"
+    full_conversation = f"Active Course Framework: {module_choice}\n\n"
     for m in st.session_state.messages[:-1]:
-        prefix = "Student" if m["role"] == "user" else "Sparring Partner"
-        full_prompt_text += f"{prefix}: {m['content']}\n\n"
-    
-    full_prompt_text += f"Student: {user_prompt}\nSparring Partner:"
+        sender = "Student" if m["role"] == "user" else "Sparring Partner"
+        full_conversation += f"{sender}: {m['content']}\n\n"
+    full_conversation += f"Student: {user_prompt}\nSparring Partner:"
 
     with st.chat_message("assistant"):
-        with st.spinner("Sparring with course frameworks..."):
+        with st.spinner("Reflecting on course frameworks..."):
             try:
-                # Prepare contents
-                if audio_bytes:
-                    contents = [
-                        types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"),
-                        full_prompt_text
-                    ]
-                else:
-                    contents = full_prompt_text
-
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_INSTRUCTION,
-                        temperature=0.7,
-                    )
+                # Interactions API for Gemini 3.8
+                interaction = client.interactions.create(
+                    model="models/gemini-3.8-flash",
+                    input=full_conversation,
+                    system_instruction=SYSTEM_INSTRUCTION
                 )
-                reply = response.text
+                
+                # Extract text output
+                reply = ""
+                if hasattr(interaction, "outputs") and interaction.outputs:
+                    for out in interaction.outputs:
+                        if hasattr(out, "text"):
+                            reply += out.text
+                        elif isinstance(out, dict) and "text" in out:
+                            reply += out["text"]
+                elif hasattr(interaction, "text"):
+                    reply = interaction.text
+                else:
+                    reply = str(interaction)
+                    
                 st.markdown(reply)
                 st.session_state.messages.append({"role": "assistant", "content": reply})
             except Exception as e:
-                st.error(f"API Error Details: {e}")
+                # Fallback to standard generate_content if interactions call differs
+                try:
+                    res = client.models.generate_content(
+                        model="models/gemini-3.8-flash",
+                        contents=full_conversation,
+                        config={"system_instruction": SYSTEM_INSTRUCTION}
+                    )
+                    reply = res.text
+                    st.markdown(reply)
+                    st.session_state.messages.append({"role": "assistant", "content": reply})
+                except Exception as inner_e:
+                    st.error(f"Error: {inner_e}")
