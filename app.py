@@ -143,7 +143,7 @@ if user_input:
         with st.spinner("Sparring with course frameworks..."):
             try:
                 response = client.models.generate_content(
-                    model="gemini-2.0-flash",
+                    model="gemini-3.8-flash",
                     contents=chat_contents,
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_INSTRUCTION + f"\nCurrent selected module context: {module_choice}",
