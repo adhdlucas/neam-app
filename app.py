@@ -8,7 +8,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom Styling for Focus and Reduced Cognitive Clutter
+# Custom Styling for Reduced Cognitive Clutter
 st.markdown("""
 <style>
     .main { background-color: #f8fafc; }
@@ -38,7 +38,7 @@ You are NOT a ghostwriter. You are an intellectual sounding board, cognitive sca
 5. ALWAYS end your turn with ONE concrete, low-friction question or action prompt.
 """
 
-# Retrieve API Key
+# Retrieve API Key from Secrets or Sidebar
 api_key = st.secrets.get("GEMINI_API_KEY")
 if not api_key:
     api_key = st.sidebar.text_input("Enter Gemini API Key", type="password")
@@ -47,9 +47,10 @@ if not api_key:
     st.info("👋 Welcome! Please enter your Gemini API key in the sidebar to activate the module.")
     st.stop()
 
+# Initialize Client
 client = genai.Client(api_key=api_key)
 
-# Sidebar: Controls & Audit Log
+# Sidebar: Controls & Audit Trail
 with st.sidebar:
     st.title("🧠 NEAM Co-Pilot")
     st.caption("Steinbeis / Berlin School of Creative Leadership")
@@ -106,59 +107,56 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Voice Input Section
+# Voice Input
 audio_data = st.audio_input("🎙️ Record a quick voice thought (optional)")
 
-user_input = None
+user_text = st.chat_input("Speak your mind or type your rough idea here...")
+
+user_prompt = None
+audio_bytes = None
 
 if audio_data is not None:
-    with st.spinner("Transcribing and processing your voice note..."):
-        audio_bytes = audio_data.read()
-        audio_part = types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav")
-        user_input = "Voice Note: Student shared audio input."
-        prompt_content = [audio_part, "Listen to this audio, extract the student's core premise, and spar with them according to NEAM system rules."]
+    audio_bytes = audio_data.read()
+    user_prompt = "🎙️ [Student submitted a voice note]"
 
-text_prompt = st.chat_input("Speak your mind or type your rough idea here...")
-if text_prompt:
-    user_input = text_prompt
-    prompt_content = text_prompt
+if user_text:
+    user_prompt = user_text
 
-# Process Interaction with Automatic Model Fallback
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
+if user_prompt:
+    st.session_state.messages.append({"role": "user", "content": user_prompt})
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.markdown(user_prompt)
 
-    chat_contents = []
+    # Format history cleanly as strings for the API
+    full_prompt_text = f"Context Module: {module_choice}\n\n"
     for m in st.session_state.messages[:-1]:
-        role = "user" if m["role"] == "user" else "model"
-        chat_contents.append(types.Content(role=role, parts=[types.Part.from_text(text=m["content"])]))
+        prefix = "Student" if m["role"] == "user" else "Sparring Partner"
+        full_prompt_text += f"{prefix}: {m['content']}\n\n"
     
-    if isinstance(prompt_content, list):
-        chat_contents.append(types.Content(role="user", parts=prompt_content))
-    else:
-        chat_contents.append(types.Content(role="user", parts=[types.Part.from_text(text=prompt_content)]))
+    full_prompt_text += f"Student: {user_prompt}\nSparring Partner:"
 
     with st.chat_message("assistant"):
         with st.spinner("Sparring with course frameworks..."):
-            reply = None
-            for model_candidate in ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"]:
-                try:
-                    response = client.models.generate_content(
-                        model=model_candidate,
-                        contents=chat_contents,
-                        config=types.GenerateContentConfig(
-                            system_instruction=SYSTEM_INSTRUCTION + f"\nCurrent selected module context: {module_choice}",
-                            temperature=0.7,
-                        )
+            try:
+                # Prepare contents
+                if audio_bytes:
+                    contents = [
+                        types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"),
+                        full_prompt_text
+                    ]
+                else:
+                    contents = full_prompt_text
+
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_INSTRUCTION,
+                        temperature=0.7,
                     )
-                    reply = response.text
-                    break
-                except Exception:
-                    continue
-            
-            if reply:
+                )
+                reply = response.text
                 st.markdown(reply)
                 st.session_state.messages.append({"role": "assistant", "content": reply})
-            else:
-                st.error("Google's servers are temporarily overloaded across all available models. Please retry in 10-20 seconds.")
+            except Exception as e:
+                st.error(f"API Error Details: {e}")
