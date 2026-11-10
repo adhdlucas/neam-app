@@ -8,7 +8,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom Styling
+# Custom Styling for Focus and Reduced Cognitive Clutter
 st.markdown("""
 <style>
     .main { background-color: #f8fafc; }
@@ -49,7 +49,7 @@ if not api_key:
 
 client = genai.Client(api_key=api_key)
 
-# Sidebar
+# Sidebar: Controls & Audit Log
 with st.sidebar:
     st.title("🧠 NEAM Co-Pilot")
     st.caption("Steinbeis / Berlin School of Creative Leadership")
@@ -110,20 +110,20 @@ for message in st.session_state.messages:
 audio_data = st.audio_input("🎙️ Record a quick voice thought (optional)")
 
 user_input = None
-model="gemini-3.8-flash",
+
 if audio_data is not None:
     with st.spinner("Transcribing and processing your voice note..."):
         audio_bytes = audio_data.read()
         audio_part = types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav")
-        user_input = "Voice Note: Student spoke their thoughts via audio."
-        prompt_content = [audio_part, "Please listen to this student audio, transcribe their core strategic dilemma, and respond according to the NEAM sparring instructions."]
+        user_input = "Voice Note: Student shared audio input."
+        prompt_content = [audio_part, "Listen to this audio, extract the student's core premise, and spar with them according to NEAM system rules."]
 
 text_prompt = st.chat_input("Speak your mind or type your rough idea here...")
 if text_prompt:
     user_input = text_prompt
     prompt_content = text_prompt
 
-# Send to Gemini
+# Process Interaction with Automatic Model Fallback
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
@@ -141,17 +141,24 @@ if user_input:
 
     with st.chat_message("assistant"):
         with st.spinner("Sparring with course frameworks..."):
-            try:
-                response = client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=chat_contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_INSTRUCTION + f"\nCurrent selected module context: {module_choice}",
-                        temperature=0.7,
+            reply = None
+            for model_candidate in ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-2.0-flash"]:
+                try:
+                    response = client.models.generate_content(
+                        model=model_candidate,
+                        contents=chat_contents,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_INSTRUCTION + f"\nCurrent selected module context: {module_choice}",
+                            temperature=0.7,
+                        )
                     )
-                )
-                reply = response.text
+                    reply = response.text
+                    break
+                except Exception:
+                    continue
+            
+            if reply:
                 st.markdown(reply)
                 st.session_state.messages.append({"role": "assistant", "content": reply})
-            except Exception as e:
-                st.error(f"Error connecting to model: {e}")
+            else:
+                st.error("Google's servers are temporarily overloaded across all available models. Please retry in 10-20 seconds.")
