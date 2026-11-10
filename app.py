@@ -1,3 +1,4 @@
+import time
 import streamlit as st
 from google import genai
 from google.genai import types
@@ -8,16 +9,34 @@ st.set_page_config(
     layout="wide"
 )
 
+# Custom Styling: Executive Clean Green Palette
 st.markdown("""
 <style>
-    .main { background-color: #f8fafc; }
+    .main { background-color: #f9fafb; }
+    
+    /* ADHD Pacing Aid card with emerald green border */
     .sprint-card {
-        padding: 12px 16px;
+        padding: 14px 18px;
         background: #ffffff;
+        border-radius: 10px;
+        border-left: 5px solid #10b981;
+        margin-bottom: 12px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    
+    /* User chat bubble styling */
+    div[data-testid="stChatMessage"]:nth-child(even) {
+        border-left: 3px solid #10b981;
+        background-color: #f0fdf4;
         border-radius: 8px;
-        border-left: 4px solid #3b82f6;
-        margin-bottom: 10px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        padding: 8px;
+    }
+
+    /* Primary buttons */
+    button[kind="primary"], .stDownloadButton>button {
+        background-color: #10b981 !important;
+        border-color: #059669 !important;
+        color: white !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -62,10 +81,10 @@ with st.sidebar:
     
     st.markdown("""
     <div class="sprint-card">
-        <b>ADHD Pacing Aid:</b><br>
-        Micro-Sprint 1: Problem Clarification<br>
-        Micro-Sprint 2: Theoretical Grounding<br>
-        Micro-Sprint 3: Strategy Defensibility
+        <b style="color: #065f46;">ADHD Pacing Aid:</b><br>
+        • Micro-Sprint 1: Problem Clarification<br>
+        • Micro-Sprint 2: Theoretical Grounding<br>
+        • Micro-Sprint 3: Strategy Defensibility
     </div>
     """, unsafe_allow_html=True)
     
@@ -107,7 +126,6 @@ if user_prompt:
     with st.chat_message("user"):
         st.markdown(user_prompt)
 
-    # Build conversation history
     full_prompt = f"Module Focus: {module_choice}\n\n"
     for m in st.session_state.messages[:-1]:
         role = "Student" if m["role"] == "user" else "Sparring Partner"
@@ -117,21 +135,32 @@ if user_prompt:
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         full_response = ""
-        try:
-            # Stream response in real time to prevent UI freezes
-            response_stream = client.models.generate_content_stream(
-                model="gemini-3.8-flash",
-                contents=full_prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_INSTRUCTION,
-                    temperature=0.7,
+        success = False
+        
+        # Retry loop to gracefully handle transient 503 high-demand surges
+        for attempt in range(3):
+            try:
+                response_stream = client.models.generate_content_stream(
+                    model="gemini-3.8-flash",
+                    contents=full_prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_INSTRUCTION,
+                        temperature=0.7,
+                    )
                 )
-            )
-            for chunk in response_stream:
-                if chunk.text:
-                    full_response += chunk.text
-                    message_placeholder.markdown(full_response + "▌")
-            message_placeholder.markdown(full_response)
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
-        except Exception as e:
-            message_placeholder.error(f"Error: {e}")
+                for chunk in response_stream:
+                    if chunk.text:
+                        full_response += chunk.text
+                        message_placeholder.markdown(full_response + "▌")
+                message_placeholder.markdown(full_response)
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
+                success = True
+                break
+            except Exception as e:
+                err_str = str(e)
+                if "503" in err_str and attempt < 2:
+                    time.sleep(1.5)  # Back off briefly for server capacity to clear
+                    continue
+                else:
+                    message_placeholder.error(f"Error: {e}")
+                    break
