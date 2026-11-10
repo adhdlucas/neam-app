@@ -1,5 +1,6 @@
 import streamlit as st
 from google import genai
+from google.genai import types
 
 st.set_page_config(
     page_title="NEAM | Steinbeis Executive Co-Pilot",
@@ -99,62 +100,38 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-audio_data = st.audio_input("🎙️ Record a quick voice thought (optional)")
-user_text = st.chat_input("Speak your mind or type your rough idea here...")
-
-user_prompt = None
-if audio_data is not None:
-    user_prompt = "🎙️ [Student submitted an audio query. Please help me unpack my strategic thoughts.]"
-
-if user_text:
-    user_prompt = user_text
+user_prompt = st.chat_input("Speak your mind or type your rough idea here...")
 
 if user_prompt:
     st.session_state.messages.append({"role": "user", "content": user_prompt})
     with st.chat_message("user"):
         st.markdown(user_prompt)
 
-    full_conversation = f"Active Course Framework: {module_choice}\n\n"
+    # Build conversation history
+    full_prompt = f"Module Focus: {module_choice}\n\n"
     for m in st.session_state.messages[:-1]:
-        sender = "Student" if m["role"] == "user" else "Sparring Partner"
-        full_conversation += f"{sender}: {m['content']}\n\n"
-    full_conversation += f"Student: {user_prompt}\nSparring Partner:"
+        role = "Student" if m["role"] == "user" else "Sparring Partner"
+        full_prompt += f"{role}: {m['content']}\n\n"
+    full_prompt += f"Student: {user_prompt}\nSparring Partner:"
 
     with st.chat_message("assistant"):
-        with st.spinner("Reflecting on course frameworks..."):
-            try:
-                # Interactions API for Gemini 3.8
-                interaction = client.interactions.create(
-                    model="models/gemini-3.8-flash",
-                    input=full_conversation,
-                    system_instruction=SYSTEM_INSTRUCTION
+        message_placeholder = st.empty()
+        full_response = ""
+        try:
+            # Stream response in real time to prevent UI freezes
+            response_stream = client.models.generate_content_stream(
+                model="gemini-3.8-flash",
+                contents=full_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_INSTRUCTION,
+                    temperature=0.7,
                 )
-                
-                # Extract text output
-                reply = ""
-                if hasattr(interaction, "outputs") and interaction.outputs:
-                    for out in interaction.outputs:
-                        if hasattr(out, "text"):
-                            reply += out.text
-                        elif isinstance(out, dict) and "text" in out:
-                            reply += out["text"]
-                elif hasattr(interaction, "text"):
-                    reply = interaction.text
-                else:
-                    reply = str(interaction)
-                    
-                st.markdown(reply)
-                st.session_state.messages.append({"role": "assistant", "content": reply})
-            except Exception as e:
-                # Fallback to standard generate_content if interactions call differs
-                try:
-                    res = client.models.generate_content(
-                        model="models/gemini-3.8-flash",
-                        contents=full_conversation,
-                        config={"system_instruction": SYSTEM_INSTRUCTION}
-                    )
-                    reply = res.text
-                    st.markdown(reply)
-                    st.session_state.messages.append({"role": "assistant", "content": reply})
-                except Exception as inner_e:
-                    st.error(f"Error: {inner_e}")
+            )
+            for chunk in response_stream:
+                if chunk.text:
+                    full_response += chunk.text
+                    message_placeholder.markdown(full_response + "▌")
+            message_placeholder.markdown(full_response)
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
+        except Exception as e:
+            message_placeholder.error(f"Error: {e}")
