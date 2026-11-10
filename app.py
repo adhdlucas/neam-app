@@ -110,7 +110,7 @@ for message in st.session_state.messages:
 audio_data = st.audio_input("🎙️ Record a quick voice thought (optional)")
 
 user_input = None
-
+model="gemini-3.8-flash",
 if audio_data is not None:
     with st.spinner("Transcribing and processing your voice note..."):
         audio_bytes = audio_data.read()
