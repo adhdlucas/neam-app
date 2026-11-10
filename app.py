@@ -137,7 +137,7 @@ if user_prompt:
         full_response = ""
         
         # Primary: gemini-2.0-flash-lite, Fallback: gemini-1.5-flash
-        for target_model in ["gemini-2.0-flash-lite", "gemini-1.5-flash"]:
+        for target_model in ["gemini-3.8-flash"]:
             try:
                 response_stream = client.models.generate_content_stream(
                     model=target_model,
