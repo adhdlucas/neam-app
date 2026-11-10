@@ -135,13 +135,12 @@ if user_prompt:
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         full_response = ""
-        success = False
         
-        # Retry loop to gracefully handle transient 503 high-demand surges
-        for attempt in range(3):
+        # Primary: gemini-2.0-flash-lite, Fallback: gemini-1.5-flash
+        for target_model in ["gemini-2.0-flash-lite", "gemini-1.5-flash"]:
             try:
                 response_stream = client.models.generate_content_stream(
-                    model="gemini-3.8-flash",
+                    model=target_model,
                     contents=full_prompt,
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_INSTRUCTION,
@@ -154,13 +153,11 @@ if user_prompt:
                         message_placeholder.markdown(full_response + "▌")
                 message_placeholder.markdown(full_response)
                 st.session_state.messages.append({"role": "assistant", "content": full_response})
-                success = True
                 break
             except Exception as e:
-                err_str = str(e)
-                if "503" in err_str and attempt < 2:
-                    time.sleep(1.5)  # Back off briefly for server capacity to clear
-                    continue
-                else:
+                err_text = str(e)
+                if target_model == "gemini-1.5-flash":
                     message_placeholder.error(f"Error: {e}")
-                    break
+                else:
+                    time.sleep(1)
+                    continue
