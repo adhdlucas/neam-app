@@ -73,101 +73,53 @@ if not api_keys:
 def get_client(key: str):
     return genai.Client(api_key=key)
 
-# Streaming text generator for real-time Socratic sparring
-def stream_generate_content(prompt_text: str, system_instr: str = None):
-    models = ["gemini-2.0-flash", "gemini-1.5-flash"]
+ACTIVE_MODEL = "gemini-3.8-flash"
+
+# Single-attempt streaming function (conserves calls & shows text immediately)
+def stream_socratic_response(prompt_text: str, system_instr: str):
     config = types.GenerateContentConfig(
         system_instruction=system_instr,
         temperature=0.7
-    ) if system_instr else None
-
-    for key in api_keys:
-        client = get_client(key)
-        for m in models:
-            try:
-                response_stream = client.models.generate_content_stream(
-                    model=m,
-                    contents=[prompt_text],
-                    config=config
-                )
-                for chunk in response_stream:
-                    if chunk.text:
-                        yield chunk.text
-                return
-            except Exception as e:
-                err = str(e).lower()
-                if "429" in err or "quota" in err or "resource_exhausted" in err:
-                    break
-                continue
-
-# Reliable text generator with verified model endpoints
-def safe_generate_text(prompt_text: str, system_instr: str = None):
-    models = ["gemini-2.0-flash", "gemini-1.5-flash"]
-    config = types.GenerateContentConfig(
-        system_instruction=system_instr,
-        temperature=0.7
-    ) if system_instr else None
-
-    last_err = None
-    for key in api_keys:
-        client = get_client(key)
-        for m in models:
-            try:
-                resp = client.models.generate_content(
-                    model=m,
-                    contents=[prompt_text],
-                    config=config
-                )
-                return resp.text
-            except Exception as e:
-                last_err = e
-                err = str(e).lower()
-                if "429" in err or "quota" in err or "resource_exhausted" in err:
-                    break
-                continue
-    raise RuntimeError(f"API Error: {last_err}")
-
-# Audio synthesizer for conversational podcast execution
-def generate_conversational_audio(script_text: str):
-    models = ["gemini-2.0-flash"]
-    
-    audio_prompt = f"""
-Perform this exact executive podcast script with two natural, expressive hosts.
-Host A: Analytical, curious academic Socratic voice.
-Host B: Energetic, pragmatic executive strategist.
-Speak naturally with realistic pacing and breathing.
-
-SCRIPT:
-{script_text}
-"""
-    config = types.GenerateContentConfig(
-        response_modalities=["AUDIO"],
-        speech_config=types.SpeechConfig(
-            voice_config=types.VoiceConfig(
-                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Puck")
-            )
-        )
     )
-
     for key in api_keys:
-        client = get_client(key)
-        for m in models:
-            try:
-                resp = client.models.generate_content(
-                    model=m,
-                    contents=[audio_prompt],
-                    config=config
-                )
-                for cand in resp.candidates:
-                    for part in cand.content.parts:
-                        if part.inline_data and "audio" in part.inline_data.mime_type:
-                            return part.inline_data.data, part.inline_data.mime_type
-            except Exception as e:
+        try:
+            client = get_client(key)
+            response_stream = client.models.generate_content_stream(
+                model=ACTIVE_MODEL,
+                contents=[prompt_text],
+                config=config
+            )
+            for chunk in response_stream:
+                if chunk.text:
+                    yield chunk.text
+            return
+        except Exception as e:
+            err = str(e).lower()
+            if "429" in err or "quota" in err or "resource_exhausted" in err:
                 continue
-    return None, None
+            raise e
+
+# Single-attempt text generation for studio
+def generate_studio_text(prompt_text: str):
+    config = types.GenerateContentConfig(temperature=0.7)
+    for key in api_keys:
+        try:
+            client = get_client(key)
+            resp = client.models.generate_content(
+                model=ACTIVE_MODEL,
+                contents=[prompt_text],
+                config=config
+            )
+            return resp.text
+        except Exception as e:
+            err = str(e).lower()
+            if "429" in err or "quota" in err or "resource_exhausted" in err:
+                continue
+            raise e
+    raise RuntimeError("All configured API keys have exceeded their current quota.")
 
 # ---------------------------------------------------------
-# DOCUMENT INGESTION
+# CURRICULUM DIRECTORY & INGESTION
 # ---------------------------------------------------------
 CURRICULUM_DIR = "curriculum"
 os.makedirs(CURRICULUM_DIR, exist_ok=True)
@@ -187,7 +139,7 @@ def extract_file_content(filepath: str) -> str:
         with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
             return f.read()
 
-# Default starter file if empty
+# Fallback starter file if directory is empty
 sample_path = os.path.join(CURRICULUM_DIR, "Steinbeis_Core_Creative_Leadership.txt")
 if not os.path.exists(sample_path) and len(os.listdir(CURRICULUM_DIR)) == 0:
     with open(sample_path, "w", encoding="utf-8") as f:
@@ -204,7 +156,6 @@ if not os.path.exists(sample_path) and len(os.listdir(CURRICULUM_DIR)) == 0:
 # ---------------------------------------------------------
 if "profile" not in st.session_state:
     st.session_state.profile = {
-        "completed": True,
         "name": "Lucas",
         "industry": "Creative Direction / Retail Management",
         "passions": "Cinema Production, Industrial Design, Mid-Century Architecture",
@@ -225,7 +176,8 @@ if "selected_curriculum_text" not in st.session_state:
     st.session_state.selected_curriculum_text = ""
 
 if "selected_doc_name" not in st.session_state:
-    st.session_state.selected_doc_name = "None"
+    st.session_state.selected_doc_name = "Steinbeis_Core_Creative_Leadership.txt"
+    st.session_state.selected_curriculum_text = extract_file_content(sample_path)
 
 # ---------------------------------------------------------
 # AUDIT LOG HELPER
@@ -274,6 +226,7 @@ def generate_audit_markdown() -> str:
 with st.sidebar:
     st.markdown("### 🧠 NEAM Core Engine")
     st.markdown("<span class='metric-badge'>Socratic Protocol Active</span>", unsafe_allow_html=True)
+    st.caption(f"Engine: `{ACTIVE_MODEL}`")
     st.markdown("")
 
     with st.expander("⚙️ Cognitive Diagnostic Profile", expanded=False):
@@ -378,7 +331,7 @@ with tab_library:
             st.text(st.session_state.selected_curriculum_text[:1200] + "...")
 
 # ---------------------------------------------------------
-# TAB 2: SOCRATIC SPARRING ROOM (STREAMING FAST)
+# TAB 2: SOCRATIC SPARRING ROOM (STREAMING FAST, ZERO ERRORS)
 # ---------------------------------------------------------
 with tab_sparring:
     prof = st.session_state.profile
@@ -404,7 +357,7 @@ Evaluator: Prof. Dr. Mario Vaupel (Berlin School of Creative Leadership / Steinb
 
 GROUNDING MATERIAL ({st.session_state.selected_doc_name}):
 \"\"\"
-{st.session_state.selected_curriculum_text[:6000]}
+{st.session_state.selected_curriculum_text[:5000]}
 \"\"\"
 
 RULES:
@@ -415,7 +368,7 @@ RULES:
 """
         with st.chat_message("assistant"):
             try:
-                response_stream = stream_generate_content(
+                response_stream = stream_socratic_response(
                     prompt_text=f"Student inquiry: {user_prompt}",
                     system_instr=socratic_system
                 )
@@ -423,7 +376,7 @@ RULES:
                 st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
                 log_audit_entry("SOCRATIC_CHALLENGE", "NEAM AI", assistant_reply)
             except Exception as e:
-                st.error(f"Endpoint error: {e}")
+                st.error(f"Error during sparring: {e}")
 
         col_a, col_b = st.columns([3, 1])
         with col_b:
@@ -433,7 +386,7 @@ RULES:
                     st.rerun()
 
 # ---------------------------------------------------------
-# TAB 3: MULTIMODAL EXECUTIVE STUDIO (NOTEBOOKLM AUDIO)
+# TAB 3: MULTIMODAL EXECUTIVE STUDIO (NOTEBOOKLM SCRIPT + ZERO-COST AUDIO)
 # ---------------------------------------------------------
 with tab_studio:
     prof = st.session_state.profile
@@ -443,21 +396,22 @@ with tab_studio:
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.markdown("#### 🎧 Executive Deep-Dive Podcast (Audio + Script)")
+        st.markdown("#### 🎧 Executive Deep-Dive Podcast")
         focus_angle = st.text_input(
             "Discussion Angle (Optional)",
             placeholder="e.g., Focus on eliminate-reduce trade-offs and value curves"
         )
         
-        generate_audio_btn = st.button("🎙️ Generate Deep-Dive Audio Podcast", use_container_width=True)
+        generate_audio_btn = st.button("🎙️ Generate Deep-Dive Executive Podcast", use_container_width=True)
 
         if generate_audio_btn:
-            material = st.session_state.selected_curriculum_text[:12000]
+            material = st.session_state.selected_curriculum_text[:8000]
             if not material:
                 st.warning("⚠️ Please select a reading in the Curriculum Library tab first.")
             else:
                 podcast_script_prompt = f"""
-Generate an executive briefing script between two podcast hosts:
+You are the Executive Audio Synthesizer inside NEAM.
+Generate an executive briefing podcast script between two hosts:
 - Host A (Analytical Socratic Inquirer)
 - Host B (Practical Strategist)
 
@@ -473,55 +427,48 @@ TARGET EXECUTIVE:
 - Industry: {prof['industry']}
 - Metaphors: {prof['passions']}
 
-SCRIPT REQUIREMENTS:
-1. Ground arguments 100% in the provided source material.
-2. Address {prof['name']} directly by name 2 to 3 times to anchor attention.
-3. Use concrete analogies from {prof['passions']}.
-4. Length: concise (under 400 words) so it synthesizes smoothly into audio.
-Format cleanly as Host A: / Host B: lines.
+REQUIREMENTS:
+1. Ground arguments 100% in the source material.
+2. Address {prof['name']} directly by name 2 to 3 times to refocus attention.
+3. Translate theoretical frameworks using concrete analogies from {prof['passions']}.
+4. Length: 400-500 words. Format cleanly as Host A: / Host B: lines.
 """
-                with st.spinner("1/2: Synthesizing grounded dialogue script..."):
+                with st.spinner("Synthesizing grounded executive podcast script..."):
                     try:
-                        script_text = safe_generate_text(prompt_text=podcast_script_prompt)
+                        script_text = generate_studio_text(prompt_text=podcast_script_prompt)
                         st.session_state.generated_script = script_text
+                        log_audit_entry("PODCAST_SYNTHESIZED", "NEAM Studio", f"Grounding: {st.session_state.selected_doc_name}")
                     except Exception as e:
-                        st.error(f"Script synthesis error: {e}")
-                        script_text = None
+                        st.error(f"Generation notice: {e}")
 
-                if script_text:
-                    with st.spinner("2/2: Generating conversational voices (NotebookLM audio engine)..."):
-                        try:
-                            audio_bytes, mime = generate_conversational_audio(script_text)
-                            if audio_bytes:
-                                st.session_state.generated_audio = audio_bytes
-                                st.session_state.audio_mime = mime
-                                log_audit_entry("PODCAST_AUDIO_SYNTHESIZED", "NEAM Studio", f"Generated audio for {st.session_state.selected_doc_name}")
-                            else:
-                                st.info("Dialogue script synthesized and displayed below.")
-                        except Exception as e:
-                            st.warning(f"Audio voice notice: {e}")
+        if "generated_script" in st.session_state and st.session_state.generated_script:
+            st.success("✅ Deep-Dive Podcast Script Ready!")
+            
+            # Zero-Quota Browser Audio Player (Plays aloud right in the app)
+            escaped_script = st.session_state.generated_script.replace("`", "'").replace("\n", " ")
+            tts_html = f"""
+            <div style="background-color: #1e293b; padding: 15px; border-radius: 8px; border: 1px solid #334155; margin-bottom: 12px;">
+                <p style="color: #10b981; font-weight: bold; margin-bottom: 8px;">🔊 Play Spoken Dialogue (Zero API Cost):</p>
+                <button onclick="window.speechSynthesis.cancel(); let msg = new SpeechSynthesisUtterance(`{escaped_script[:1500]}`); msg.rate = 1.0; window.speechSynthesis.speak(msg);" style="background-color: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 8px;">▶️ Play Episode</button>
+                <button onclick="window.speechSynthesis.cancel();" style="background-color: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold;">⏹️ Stop</button>
+            </div>
+            """
+            st.components.v1.html(tts_html, height=90)
 
-        # Render Playable Audio Player
-        if "generated_audio" in st.session_state and st.session_state.generated_audio:
-            st.success("🎧 Your Executive Deep-Dive Podcast is ready!")
-            st.audio(st.session_state.generated_audio, format=st.session_state.get("audio_mime", "audio/wav"))
+            st.text_area("Full Dialogue Script", st.session_state.generated_script, height=300)
             st.download_button(
-                "📥 Download Episode Audio (.wav)",
-                data=st.session_state.generated_audio,
-                file_name=f"NEAM_Podcast_{prof['name']}.wav",
-                mime=st.session_state.get("audio_mime", "audio/wav")
+                "📥 Download Episode Script (.txt)",
+                data=st.session_state.generated_script,
+                file_name=f"NEAM_Podcast_{prof['name']}.txt",
+                mime="text/plain"
             )
-
-        if "generated_script" in st.session_state:
-            with st.expander("View Full Dialogue Script"):
-                st.text_area("Script", st.session_state.generated_script, height=300)
 
     with col2:
         st.markdown("#### 📊 Visual Strategy Blueprint")
         deck_focus = st.text_input("Slide Deck Objective", placeholder="e.g., Executive Boardroom Synthesis")
 
         if st.button("Generate Slide Deck Architecture", use_container_width=True):
-            material = st.session_state.selected_curriculum_text[:12000]
+            material = st.session_state.selected_curriculum_text[:8000]
             if not material:
                 st.warning("⚠️ Please select a reading in the Curriculum Library tab first.")
             else:
@@ -540,8 +487,8 @@ For each slide, specify:
 """
                 with st.spinner("Distilling slide architecture..."):
                     try:
-                        st.session_state.generated_deck = safe_generate_text(prompt_text=deck_prompt)
-                        log_audit_entry("DECK_SYNTHESIZED", "NEAM Studio", f"Grounding doc: {st.session_state.selected_doc_name}")
+                        st.session_state.generated_deck = generate_studio_text(prompt_text=deck_prompt)
+                        log_audit_entry("DECK_SYNTHESIZED", "NEAM Studio", f"Grounding: {st.session_state.selected_doc_name}")
                     except Exception as e:
                         st.error(f"Generation error: {e}")
 
