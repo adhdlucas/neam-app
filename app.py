@@ -626,4 +626,3 @@ elif st.session_state.current_role == "admin":
                 st.success(f"Module {mod_code} successfully integrated into the closed-loop repository.")
                 st.rerun()
 
-```
