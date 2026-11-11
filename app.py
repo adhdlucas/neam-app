@@ -13,7 +13,7 @@ from google.genai import types
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="NEAM | Executive Academic Portal",
-    page_icon="🏛️",
+    page_icon="🎓",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -167,7 +167,7 @@ CUSTOM_CSS = """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# GEMINI & ELEVENLABS INITIALIZATION & ROBUST FALLBACKS
+# GEMINI & ELEVENLABS CLIENT INITIALIZATION
 # ---------------------------------------------------------
 raw_keys = st.secrets.get("GEMINI_API_KEY", "")
 api_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
@@ -181,10 +181,10 @@ elevenlabs_key = st.secrets.get("ELEVENLABS_API_KEY", None)
 def get_gemini_client(key: str):
     return genai.Client(api_key=key)
 
-# Modelos estables con fallback automático ante congestión o error 5xx
-PRIMARY_MODELS = ["gemini-2.5-flash", "gemini-1.5-flash"]
+# Modelos oficiales válidos de Google GenAI SDK con fallback
+MODEL_CANDIDATES = ["gemini-2.5-flash", "gemini-1.5-flash"]
 
-# Socratic sparring streaming optimizado para ultra-baja latencia
+# Socratic sparring streaming optimizado para ultra-baja latencia (<1s)
 def stream_socratic_response(prompt_text: str, system_instr: str):
     config = types.GenerateContentConfig(
         system_instruction=system_instr,
@@ -192,7 +192,7 @@ def stream_socratic_response(prompt_text: str, system_instr: str):
         max_output_tokens=220,
     )
     last_err = None
-    for model_name in PRIMARY_MODELS:
+    for model_name in MODEL_CANDIDATES:
         for key in api_keys:
             try:
                 client = get_gemini_client(key)
@@ -214,7 +214,7 @@ def stream_socratic_response(prompt_text: str, system_instr: str):
 def generate_studio_text(prompt_text: str):
     config = types.GenerateContentConfig(temperature=0.7)
     last_err = None
-    for model_name in PRIMARY_MODELS:
+    for model_name in MODEL_CANDIDATES:
         for key in api_keys:
             try:
                 client = get_gemini_client(key)
@@ -223,20 +223,21 @@ def generate_studio_text(prompt_text: str):
                     contents=[prompt_text],
                     config=config
                 )
-                if resp.text:
+                if resp and resp.text:
                     return resp.text
             except Exception as e:
                 last_err = e
                 continue
-    raise RuntimeError(f"Service temporarily busy. Details: {last_err}")
+    st.error(f"⚠️ Error al conectar con Gemini: {last_err}")
+    return None
 
-# Multi-speaker neural audio generator (ElevenLabs API v1.x+)
+# Multi-speaker dual-voice neural audio generator (ElevenLabs API v1.x+)
 def synthesize_dual_voice_podcast(script_text: str, api_token: str) -> bytes:
     from elevenlabs.client import ElevenLabs
     client_tts = ElevenLabs(api_key=api_token)
     
-    VOICE_HOST_A = "nPczCjzI2devNBz1zQrb"  # Brian (Analytical / Inquiring)
-    VOICE_HOST_B = "Xb7hH8MSUJpSbSDYk0k2"  # Alice (Dynamic / Strategic)
+    VOICE_HOST_A = "nPczCjzI2devNBz1zQrb"  # Brian
+    VOICE_HOST_B = "Xb7hH8MSUJpSbSDYk0k2"  # Alice
 
     lines = script_text.strip().split("\n")
     combined_audio = io.BytesIO()
@@ -279,7 +280,7 @@ def synthesize_dual_voice_podcast(script_text: str, api_token: str) -> bytes:
     combined_audio.seek(0)
     return combined_audio.read()
 
-# Custom Audio Player con controles de salto +-10s
+# Reproductor interactivo con controles de salto +-10s
 def render_podcast_player(audio_bytes: bytes, title: str = "Executive Briefing"):
     b64_audio = base64.b64encode(audio_bytes).decode()
     player_html = f"""
@@ -730,12 +731,12 @@ Host B: ...
                 with st.spinner("Synthesizing script and rendering neural audio..."):
                     script = generate_studio_text(script_prompt)
                     st.session_state.active_script = script
-                    if elevenlabs_key:
+                    if script and elevenlabs_key:
                         audio_b = synthesize_dual_voice_podcast(script, elevenlabs_key)
                         st.session_state.active_audio = audio_b
                         st.session_state.completed_resources.add(curr_r["id"])
                         st.toast("🎙️ Podcast finished! Warrior weapon equipped.", icon="⚔️")
-                    else:
+                    elif not elevenlabs_key:
                         st.warning("Please configure ELEVENLABS_API_KEY in Secrets for multi-speaker neural audio.")
 
             if "active_audio" in st.session_state and st.session_state.active_audio:
@@ -748,7 +749,7 @@ Host B: ...
                     use_container_width=True
                 )
 
-            if "active_script" in st.session_state:
+            if "active_script" in st.session_state and st.session_state.active_script:
                 with st.expander("View Full Dialogue Transcript"):
                     st.text(st.session_state.active_script)
 
@@ -758,7 +759,8 @@ Host B: ...
                 deck_prompt = f"Create a 3-slide visual architecture grounded in: {curr_r['content']} for {st.session_state.profile['name']}"
                 with st.spinner("Drafting deck architecture..."):
                     deck = generate_studio_text(deck_prompt)
-                    st.markdown(deck)
+                    if deck:
+                        st.markdown(deck)
 
     with col_right:
         st.markdown("<div class='instruction-label'>Module Exercise & Defense Task</div>", unsafe_allow_html=True)
