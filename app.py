@@ -2,8 +2,6 @@ import streamlit as st
 import datetime
 import os
 import glob
-import io
-import wave
 from google import genai
 from google.genai import types
 
@@ -75,9 +73,9 @@ if not api_keys:
 def get_client(key: str):
     return genai.Client(api_key=key)
 
-# Streaming text generator for fast Socratic sparring
+# Streaming text generator for real-time Socratic sparring
 def stream_generate_content(prompt_text: str, system_instr: str = None):
-    models = ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-flash-latest"]
+    models = ["gemini-2.0-flash", "gemini-1.5-flash"]
     config = types.GenerateContentConfig(
         system_instruction=system_instr,
         temperature=0.7
@@ -102,14 +100,15 @@ def stream_generate_content(prompt_text: str, system_instr: str = None):
                     break
                 continue
 
-# Standard content generator
+# Reliable text generator with verified model endpoints
 def safe_generate_text(prompt_text: str, system_instr: str = None):
-    models = ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-flash-latest"]
+    models = ["gemini-2.0-flash", "gemini-1.5-flash"]
     config = types.GenerateContentConfig(
         system_instruction=system_instr,
         temperature=0.7
     ) if system_instr else None
 
+    last_err = None
     for key in api_keys:
         client = get_client(key)
         for m in models:
@@ -121,22 +120,22 @@ def safe_generate_text(prompt_text: str, system_instr: str = None):
                 )
                 return resp.text
             except Exception as e:
+                last_err = e
                 err = str(e).lower()
                 if "429" in err or "quota" in err or "resource_exhausted" in err:
                     break
                 continue
-    raise RuntimeError("Model services currently unavailable. Check API keys and quotas.")
+    raise RuntimeError(f"API Error: {last_err}")
 
-# Conversational audio generator (NotebookLM experience)
+# Audio synthesizer for conversational podcast execution
 def generate_conversational_audio(script_text: str):
-    models = ["gemini-2.5-flash", "gemini-3.8-flash"]
+    models = ["gemini-2.0-flash"]
     
-    # Configure multi-speaker speech output
     audio_prompt = f"""
 Perform this exact executive podcast script with two natural, expressive hosts.
-Host A has a thoughtful, curious academic voice.
-Host B has an energetic, pragmatic executive tone.
-Speak naturally with realistic human conversational pacing, breathing, and genuine engagement.
+Host A: Analytical, curious academic Socratic voice.
+Host B: Energetic, pragmatic executive strategist.
+Speak naturally with realistic pacing and breathing.
 
 SCRIPT:
 {script_text}
@@ -159,15 +158,11 @@ SCRIPT:
                     contents=[audio_prompt],
                     config=config
                 )
-                # Find audio bytes in candidate parts
                 for cand in resp.candidates:
                     for part in cand.content.parts:
                         if part.inline_data and "audio" in part.inline_data.mime_type:
                             return part.inline_data.data, part.inline_data.mime_type
             except Exception as e:
-                err = str(e).lower()
-                if "429" in err or "quota" in err or "resource_exhausted" in err:
-                    break
                 continue
     return None, None
 
@@ -192,7 +187,7 @@ def extract_file_content(filepath: str) -> str:
         with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
             return f.read()
 
-# Default initial starter file
+# Default starter file if empty
 sample_path = os.path.join(CURRICULUM_DIR, "Steinbeis_Core_Creative_Leadership.txt")
 if not os.path.exists(sample_path) and len(os.listdir(CURRICULUM_DIR)) == 0:
     with open(sample_path, "w", encoding="utf-8") as f:
@@ -502,9 +497,9 @@ Format cleanly as Host A: / Host B: lines.
                                 st.session_state.audio_mime = mime
                                 log_audit_entry("PODCAST_AUDIO_SYNTHESIZED", "NEAM Studio", f"Generated audio for {st.session_state.selected_doc_name}")
                             else:
-                                st.info("Audio track synthesis in progress; reading script is ready below.")
+                                st.info("Dialogue script synthesized and displayed below.")
                         except Exception as e:
-                            st.warning(f"Audio voice generation notice: {e}")
+                            st.warning(f"Audio voice notice: {e}")
 
         # Render Playable Audio Player
         if "generated_audio" in st.session_state and st.session_state.generated_audio:
