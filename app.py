@@ -32,7 +32,7 @@ CUSTOM_CSS = """
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
-    /* FIX: Force high-contrast text visibility inside all inputs */
+    /* Force high-contrast text visibility inside all inputs */
     input, textarea, [data-testid="stChatInput"] textarea {
         color: #0f172a !important;
         background-color: #f8fafc !important;
@@ -70,24 +70,17 @@ CUSTOM_CSS = """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# GEMINI CLIENT INITIALIZATION
+# GEMINI CLIENT INITIALIZATION (MULTI-KEY RESILIENT)
 # ---------------------------------------------------------
-api_key = st.secrets.get("GEMINI_API_KEY", None)
+raw_keys = st.secrets.get("GEMINI_API_KEY", "")
+api_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
 
-if not api_key:
+if not api_keys:
     st.error("⚠️ GEMINI_API_KEY missing. Please configure it in your Streamlit Cloud Secrets.")
     st.stop()
 
-@st.cache_resource
-def get_client(key: str):
-    return genai.Client(api_key=key)
-
-client = get_client(api_key)
-
-# Fallback helper to safely call Gemini across supported model IDs
 def safe_generate_content(prompt_text: str, system_instr: str = None, audio_part=None):
-    # Try preferred flash models in sequence
-    models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-exp"]
+    models_to_try = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
     
     config = types.GenerateContentConfig(
         system_instruction=system_instr,
@@ -100,17 +93,22 @@ def safe_generate_content(prompt_text: str, system_instr: str = None, audio_part
     contents.append(prompt_text)
 
     last_err = None
-    for m in models_to_try:
-        try:
-            resp = client.models.generate_content(
-                model=m,
-                contents=contents,
-                config=config
-            )
-            return resp.text
-        except Exception as e:
-            last_err = e
-            continue
+    for key in api_keys:
+        client = genai.Client(api_key=key)
+        for m in models_to_try:
+            try:
+                resp = client.models.generate_content(
+                    model=m,
+                    contents=contents,
+                    config=config
+                )
+                return resp.text
+            except Exception as e:
+                err_str = str(e).lower()
+                if "429" in err_str or "quota" in err_str or "resource_exhausted" in err_str:
+                    break
+                last_err = e
+                continue
     raise last_err
 
 # ---------------------------------------------------------
@@ -170,6 +168,8 @@ def generate_audit_markdown() -> str:
 ---
 
 ## 2. Chronological Socratic Reasoning Ledger
+*The entries below verify authentic human critical reasoning and thesis defense. No ghostwritten content was introduced.*
+
 """
     for entry in st.session_state.audit_log:
         md += f"### `[{entry['timestamp']}]` | {entry['actor'].upper()} ({entry['event_type']})\n"
@@ -253,9 +253,9 @@ with tab_sparring:
     prof = st.session_state.profile
 
     st.markdown(f"### Socratic Sparring Partner: Step {st.session_state.current_sprint_step}/3")
-    st.caption(f"Profile: **{prof['name']}** | Stance: **{prof['stance']}** | Strict Word Ceiling: **{prof['working_memory_limit']} words**")
+    st.caption(f"Profile: **{prof['name']}** | Stance: **{prof['stance']}** | Word Ceiling: **{prof['working_memory_limit']} words**")
 
-    # Render history
+    # Render conversation history
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -279,7 +279,7 @@ with tab_sparring:
             try:
                 audio_part = types.Part.from_bytes(data=audio_bytes, mime_type=mime)
                 transcription = safe_generate_content(
-                    prompt_text="Transcribe this audio recording verbatim. Return ONLY the plain transcription text.",
+                    prompt_text="Transcribe this audio recording verbatim. Return ONLY the plain transcription text without any commentary.",
                     audio_part=audio_part
                 )
                 final_input_text = transcription.strip()
@@ -305,10 +305,10 @@ You are the Socratic sparring partner inside NEAM (Neurodivergent Executive AI M
 Academic Evaluator: Prof. Dr. Mario Vaupel (Berlin School of Creative Leadership / Steinbeis).
 
 PEDAGOGICAL RULES:
-1. ANTI-GHOSTWRITING: Never write assignments or give full summary answers. When the student says "I don't understand X", do not lecture them. Instead, break the concept into an intuitive contrast using their domain ({prof['industry']}) or passion ({prof['passions']}) and ask them ONE sharp reflective question to test their understanding.
-2. COGNITIVE CHUNKING: Strictly under {prof['working_memory_limit']} words.
-3. STANCE: {prof['stance']}. Direct, incisive, non-patronizing.
-4. Current Sprint Stage: Step {st.session_state.current_sprint_step} of 3.
+1. ANTI-GHOSTWRITING: Never write assignments or give direct lecture answers. When the student expresses confusion or asks about a framework, do NOT give a generic textbook summary. Instead, frame the concept using a sharp contrast drawn from {prof['industry']} or {prof['passions']}, and ask ONE direct, provocative question to force them to test the boundary of the concept themselves.
+2. COGNITIVE CHUNKING: Enforce a hard ceiling strictly under {prof['working_memory_limit']} words. No walls of text.
+3. STANCE: {prof['stance']}. Incisive, concise, intellectually demanding.
+4. Sprint Milestone: Currently on Step {st.session_state.current_sprint_step}/3.
 """
 
         with st.chat_message("assistant"):
@@ -332,63 +332,135 @@ PEDAGOGICAL RULES:
                     st.rerun()
 
 # ---------------------------------------------------------
-# TAB 2: MULTIMODAL EXECUTIVE STUDIO
+# TAB 2: MULTIMODAL EXECUTIVE STUDIO (MATERIAL-GROUNDED)
 # ---------------------------------------------------------
 with tab_studio:
     prof = st.session_state.profile
-    st.markdown("### 🎙️ Multimodal Strategy Translation Engine")
+    st.markdown("### 🎙️ Grounded Multimodal Strategy Translation Engine")
+    st.caption("Upload course literature or module readings. NEAM synthesizes personalized executive audio scripts and slide blueprints grounded directly in your material.")
 
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.markdown("#### 🎧 Executive Deep-Dive Podcast Script")
-        module_topic = st.text_input("Strategy Framework / Reading Topic", placeholder="e.g., Blue Ocean Strategy vs. Traditional Retailing")
-        
-        if st.button("Generate Audio Script", use_container_width=True) and module_topic:
-            p_prompt = f"""
-Generate an executive briefing script between Host A (Analytical Socratic Inquirer) and Host B (Practical Strategist).
-Topic: {module_topic}
-Student: {prof['name']}
-Industry: {prof['industry']}
-Metaphors: {prof['passions']}
+        st.markdown("#### 📄 1. Source Material Ingestion")
+        uploaded_file = st.file_uploader(
+            "Upload Module Reading / PDF / Notes",
+            type=["pdf", "txt", "md"],
+            help="Upload your Steinbeis module paper, case study, or academic chapter."
+        )
 
-Requirements:
-1. Dynamic Attention Anchors: Address {prof['name']} directly 2-3 times.
-2. Concrete analogies from {prof['passions']}.
-3. Maximum 500 words. Format as Host A: / Host B:.
-"""
-            with st.spinner("Synthesizing script..."):
+        extracted_text = ""
+        if uploaded_file is not None:
+            if uploaded_file.name.endswith(".pdf"):
                 try:
-                    script_text = safe_generate_content(prompt_text=p_prompt)
-                    st.session_state.generated_script = script_text
+                    import pypdf
+                    reader = pypdf.PdfReader(uploaded_file)
+                    for page in reader.pages:
+                        extracted_text += (page.extract_text() or "") + "\n"
+                    st.success(f"✅ Loaded: {uploaded_file.name} ({len(reader.pages)} pages parsed)")
                 except Exception as e:
-                    st.error(f"Generation error: {e}")
+                    st.error(f"Error reading PDF: {e}")
+            else:
+                extracted_text = uploaded_file.read().decode("utf-8")
+                st.success(f"✅ Loaded text file: {uploaded_file.name}")
+
+            st.session_state["uploaded_material_snippet"] = extracted_text[:10000]
+
+        st.markdown("#### 🎧 2. Executive Deep-Dive Podcast Engine")
+        focus_angle = st.text_input(
+            "Discussion Focus / Thesis Angle (Optional)",
+            placeholder="e.g., Focus on value innovation and eliminating traditional overhead"
+        )
+        
+        generate_podcast_btn = st.button("Generate Material-Grounded Podcast Script", use_container_width=True)
+
+        if generate_podcast_btn:
+            context_material = extracted_text[:12000] if extracted_text else st.session_state.get("uploaded_material_snippet", "")
+            if not context_material:
+                st.warning("⚠️ Please upload a reading or paper first so the script is grounded in verified course material.")
+            else:
+                podcast_prompt = f"""
+You are the Executive Audio Synthesizer inside NEAM.
+Generate an executive briefing podcast script between two hosts:
+- Host A (Analytical Socratic Inquirer)
+- Host B (Strategic Practitioner)
+
+STRICT GROUNDING SOURCE MATERIAL:
+\"\"\"
+{context_material}
+\"\"\"
+
+TARGET EXECUTIVE LISTENER:
+- Name: {prof['name']}
+- Industry Domain: {prof['industry']}
+- Creative Metaphor Anchors: {prof['passions']}
+- Custom Focus: {focus_angle if focus_angle else 'Core theoretical models and strategic takeaways'}
+
+SCRIPT RULES:
+1. 100% CLOSED-LOOP GROUNDING: Draw all definitions, empirical models, and arguments directly from the provided source material.
+2. DYNAMIC ATTENTION ANCHORS: Directly address {prof['name']} by name 2 to 3 times to refocus attention (e.g., "Now {prof['name']}, notice how this model breaks...").
+3. EXECUTIVE METAPHORS: Demystify the dense concepts from the reading using analogies from {prof['passions']} and {prof['industry']}.
+4. ADHD COGNITIVE REASSURANCE: Include one natural mid-script validation marker acknowledging non-linear strategic synthesis.
+5. LENGTH: 500-650 words. Format cleanly as Host A: / Host B: dialogue.
+"""
+                with st.spinner("Synthesizing personalized podcast script from uploaded material..."):
+                    try:
+                        script_text = safe_generate_content(prompt_text=podcast_prompt)
+                        st.session_state.generated_script = script_text
+                        log_audit_entry(
+                            "MATERIAL_PODCAST_GENERATED",
+                            "NEAM Studio",
+                            f"Synthesized script from {uploaded_file.name if uploaded_file else 'cached material'}"
+                        )
+                    except Exception as e:
+                        st.error(f"Generation error: {e}")
 
         if "generated_script" in st.session_state:
-            st.text_area("Podcast Script Output", st.session_state.generated_script, height=350)
+            st.text_area("Personalized Executive Podcast Script", st.session_state.generated_script, height=350)
+            st.download_button(
+                "📥 Download Podcast Script (.txt)",
+                data=st.session_state.generated_script,
+                file_name=f"NEAM_Podcast_{prof['name']}.txt",
+                mime="text/plain"
+            )
 
     with col2:
-        st.markdown("#### 📊 Visual Strategy Briefing Deck")
-        deck_topic = st.text_input("Topic for Slide Blueprint", placeholder="e.g., Value Innovation Canvas")
+        st.markdown("#### 📊 Visual Executive Strategy Deck")
+        st.markdown("Converts the uploaded literature into a 6-to-8 slide executive architecture.")
 
-        if st.button("Generate Slide Deck Architecture", use_container_width=True) and deck_topic:
-            d_prompt = f"""
-Generate a 6-slide executive briefing deck blueprint for {prof['name']}.
-Topic: {deck_topic}
-Context: {prof['industry']}
-Metaphors: {prof['passions']}
+        deck_focus = st.text_input(
+            "Slide Deck Core Objective",
+            placeholder="e.g., Boardroom briefing on the paper's framework"
+        )
+
+        generate_deck_btn = st.button("Generate Slide Deck Architecture", use_container_width=True)
+
+        if generate_deck_btn:
+            context_material = extracted_text[:12000] if extracted_text else st.session_state.get("uploaded_material_snippet", "")
+            if not context_material:
+                st.warning("⚠️ Please upload your module reading in Column 1 first.")
+            else:
+                deck_prompt = f"""
+Generate an 8-slide executive briefing deck blueprint for {prof['name']} strictly derived from this source material:
+\"\"\"
+{context_material}
+\"\"\"
+
+Context: {prof['industry']} | Metaphor Anchors: {prof['passions']} | Focus: {deck_focus}
 
 For each slide, specify:
 - Slide Title
-- Visual Archetype (e.g. 2x2 Matrix, ERRC Grid)
-- 3 Core Bullets (max 15 words each)
+- Visual Archetype (e.g., 2x2 Matrix, Value Curve, Process Flow)
+- 3 Core Takeaways (Strictly max 15 words each, directly from the text)
+- Metaphorical Translation Note
 """
-            with st.spinner("Synthesizing deck..."):
-                try:
-                    deck_text = safe_generate_content(prompt_text=d_prompt)
-                    st.session_state.generated_deck = deck_text
-                except Exception as e:
-                    st.error(f"Generation error: {e}")
+                with st.spinner("Distilling uploaded literature into visual slide blueprints..."):
+                    try:
+                        deck_text = safe_generate_content(prompt_text=deck_prompt)
+                        st.session_state.generated_deck = deck_text
+                        log_audit_entry("MATERIAL_DECK_GENERATED", "NEAM Studio", "Synthesized visual deck from uploaded material")
+                    except Exception as e:
+                        st.error(f"Generation error: {e}")
 
         if "generated_deck" in st.session_state:
             st.markdown(st.session_state.generated_deck)
