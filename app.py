@@ -249,19 +249,25 @@ with tab_sparring:
         st.session_state.last_audio = audio_val
         input_source = "Voice Transcription"
         
-        # Audio transcription via Gemini Flash
+        # Audio transcription via Gemini 2.0 Flash
         with st.spinner("Transcribing voice thesis..."):
             audio_bytes = audio_val.read()
-            audio_part = types.Part.from_bytes(
-                data=audio_bytes,
-                mime_type=audio_val.type
-            )
-            transcription_resp = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=[audio_part, "Transcribe this student note verbatim. Return strictly the transcription."]
-            )
-            final_input_text = transcription_resp.text.strip()
-            st.info(f"🎤 **Transcribed:** *\"{final_input_text}\"*")
+            mime = getattr(audio_val, "type", "audio/wav") or "audio/wav"
+            
+            try:
+                audio_part = types.Part.from_bytes(
+                    data=audio_bytes,
+                    mime_type=mime
+                )
+                transcription_resp = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=[audio_part, "Transcribe this student note verbatim. Return strictly the transcription without preamble."]
+                )
+                final_input_text = transcription_resp.text.strip()
+                st.info(f"🎤 **Transcribed:** *\"{final_input_text}\"*")
+            except Exception as e:
+                st.error(f"Transcription error: {e}")
+                final_input_text = None
 
     elif user_prompt:
         final_input_text = user_prompt
@@ -291,7 +297,7 @@ CRITICAL OPERATIONAL RULES:
         with st.chat_message("assistant"):
             with st.spinner("Deconstructing thesis..."):
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-2.0-flash",
                     contents=[
                         types.Content(
                             role="user",
@@ -354,7 +360,7 @@ Format as Host A: / Host B: dialogue.
 """
             with st.spinner("Synthesizing script with dynamic cognitive anchors..."):
                 script_resp = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-2.0-flash",
                     contents=podcast_prompt
                 )
                 script_text = script_resp.text
@@ -391,7 +397,7 @@ Format with clear Markdown headers for Slide 1 through Slide 8.
 """
             with st.spinner("Synthesizing executive visual deck..."):
                 deck_resp = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-2.0-flash",
                     contents=deck_prompt
                 )
                 deck_text = deck_resp.text
