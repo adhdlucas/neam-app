@@ -1,3 +1,4 @@
+```python
 import os
 import io
 import time
@@ -148,6 +149,9 @@ if "sparring_chat" not in st.session_state:
         }
     ]
 
+if "podcast_audio_cache" not in st.session_state:
+    st.session_state.podcast_audio_cache = {}
+
 # ---------------------------------------------------------
 # Sidebar Credentials & Routing
 # ---------------------------------------------------------
@@ -219,7 +223,7 @@ STRICT ARCHITECTURAL SAFEGUARDS:
 
     for attempt in range(3):
         try:
-            resp = requests.post(GEMINI_REST_ENDPOINT, headers=headers, json=payload, timeout=30)
+            resp = requests.post(GEMINI_REST_ENDPOINT, headers=headers, json=payload, timeout=45)
             if resp.status_code == 200:
                 data = resp.json()
                 return data["candidates"][0]["content"]["parts"][0]["text"]
@@ -236,12 +240,20 @@ STRICT ARCHITECTURAL SAFEGUARDS:
     return "Service Temporarily Unavailable (503). Retrying closed-loop endpoint..."
 
 # ---------------------------------------------------------
-# Multimodal Pipelines (Audio & Slides)
+# Multimodal Pipelines (Audio & Slides with Timeout Hardening)
 # ---------------------------------------------------------
-def generate_podcast_pipeline(material_text: str, gemini_key: str, eleven_key: str) -> Tuple[bytes, List[Dict]]:
+def generate_podcast_pipeline(material_text: str, gemini_key: str, eleven_key: str, progress_fn=None) -> Tuple[bytes, List[Dict]]:
+    """Transforms closed-loop material into an executive dual-voice dialogue with timeout safeguards."""
+    if progress_fn:
+        progress_fn("Generating dialectic podcast script via Gemini 3.8 Flash...")
+
+    # Compact the prompt input to keep token generation latency low
+    processed_text = material_text[:3500] if len(material_text) > 3500 else material_text
+
     script_prompt = f"""
-Transform this verified Steinbeis course material into a 4-turn executive podcast dialogue between 'Host_A' and 'Host_B'.
+Transform this verified Steinbeis course material into a concise 4-turn executive podcast dialogue between 'Host_A' and 'Host_B'.
 Host_A introduces the practical dilemma and challenges assumptions. Host_B provides the first-principles theoretical breakdown.
+Keep each turn under 40 words so audio generation is fast and punchy.
 Strictly return a JSON array matching:
 [
   {{"speaker": "Host_A", "text": "..."}},
@@ -249,34 +261,64 @@ Strictly return a JSON array matching:
 ]
 
 Material:
-\"\"\"{material_text}\"\"\"
+\"\"\"{processed_text}\"\"\"
 """
     headers = {"Content-Type": "application/json", "x-goog-api-key": gemini_key}
     payload = {
         "contents": [{"role": "user", "parts": [{"text": script_prompt}]}],
-        "generationConfig": {"temperature": 0.4, "responseMimeType": "application/json"}
+        "generationConfig": {
+            "temperature": 0.4,
+            "responseMimeType": "application/json",
+            "maxOutputTokens": 1024,
+        }
     }
     
-    resp = requests.post(GEMINI_REST_ENDPOINT, headers=headers, json=payload, timeout=30)
-    resp.raise_for_status()
-    script = json.loads(resp.json()["candidates"][0]["content"]["parts"][0]["text"])
+    try:
+        resp = requests.post(
+            GEMINI_REST_ENDPOINT,
+            headers=headers,
+            json=payload,
+            timeout=90  # Extended read window for script generation
+        )
+        resp.raise_for_status()
+        script = json.loads(resp.json()["candidates"][0]["content"]["parts"][0]["text"])
+    except requests.exceptions.Timeout:
+        raise RuntimeError("Gemini API timed out while generating the script (exceeded 90s). Please retry.")
+    except Exception as e:
+        raise RuntimeError(f"Script generation failed: {str(e)}")
 
     audio_buffer = io.BytesIO()
-    for turn in script:
-        speaker = turn["speaker"]
+    total_turns = len(script)
+
+    for i, turn in enumerate(script):
+        speaker = turn.get("speaker", "Host_A")
+        text = turn.get("text", "")
         v_id = VOICE_HOST_A if speaker == "Host_A" else VOICE_HOST_B
-        tts_resp = requests.post(
-            f"{ELEVENLABS_TTS_URL}/{v_id}",
-            headers={"Accept": "audio/mpeg", "Content-Type": "application/json", "xi-api-key": eleven_key},
-            json={
-                "text": turn["text"],
-                "model_id": "eleven_turbo_v2_5",
-                "voice_settings": {"stability": 0.45, "similarity_boost": 0.75}
-            },
-            timeout=40
-        )
-        if tts_resp.status_code == 200:
-            audio_buffer.write(tts_resp.content)
+
+        if progress_fn:
+            progress_fn(f"Synthesizing voice turn {i + 1}/{total_turns} ({speaker})...")
+
+        try:
+            tts_resp = requests.post(
+                f"{ELEVENLABS_TTS_URL}/{v_id}",
+                headers={
+                    "Accept": "audio/mpeg",
+                    "Content-Type": "application/json",
+                    "xi-api-key": eleven_key
+                },
+                json={
+                    "text": text,
+                    "model_id": "eleven_turbo_v2_5",
+                    "voice_settings": {"stability": 0.45, "similarity_boost": 0.75}
+                },
+                timeout=60
+            )
+            if tts_resp.status_code == 200:
+                audio_buffer.write(tts_resp.content)
+            else:
+                raise RuntimeError(f"ElevenLabs error ({tts_resp.status_code}): {tts_resp.text}")
+        except requests.exceptions.Timeout:
+            raise RuntimeError(f"ElevenLabs timed out synthesizing turn {i + 1}.")
 
     audio_buffer.seek(0)
     return audio_buffer.read(), script
@@ -435,28 +477,49 @@ elif st.session_state.current_role == "student":
             st.markdown("#### ADHD-Friendly Executive Podcast")
             st.caption("Converts dense theoretical readings into a conversational walk-and-listen dialogue.")
             
+            # Check cache to avoid re-synthesizing on rerun
+            cached_audio = st.session_state.podcast_audio_cache.get(selected_mod)
+
             if st.button("Synthesize Closed-Loop Reading into Podcast", type="primary"):
                 if not GOOGLE_API_KEY or not ELEVENLABS_API_KEY:
                     st.error("Both Google AI Studio and ElevenLabs API keys are required.")
                 else:
                     status = st.empty()
-                    status.info("Synthesizing closed-loop material via ElevenLabs dual voices...")
-                    audio_bytes, script = generate_podcast_pipeline(module_data["content"], GOOGLE_API_KEY, ELEVENLABS_API_KEY)
-                    status.success("Synthesis complete!")
+                    try:
+                        audio_bytes, script = generate_podcast_pipeline(
+                            module_data["content"], 
+                            GOOGLE_API_KEY, 
+                            ELEVENLABS_API_KEY,
+                            progress_fn=lambda msg: status.info(msg)
+                        )
+                        st.session_state.podcast_audio_cache[selected_mod] = {
+                            "bytes": audio_bytes,
+                            "script": script,
+                        }
+                        status.success("Synthesis complete!")
+                        st.rerun()
+                    except Exception as err:
+                        status.error(str(err))
 
-                    b64 = base64.b64encode(audio_bytes).decode("utf-8")
-                    player_html = f"""
-                    <div style="background-color: #111827; padding: 20px; border-radius: 8px; border: 1px solid #1f2937;">
-                        <audio id="audioPlayer" controls style="width: 100%;">
-                            <source src="data:audio/mp3;base64,{b64}" type="audio/mpeg">
-                        </audio>
-                        <div style="margin-top: 12px; display: flex; gap: 10px;">
-                            <button onclick="document.getElementById('audioPlayer').currentTime -= 10;" style="background: #1f2937; color: white; border: 1px solid #374151; padding: 6px 12px; border-radius: 4px; cursor: pointer;">⏪ -10s</button>
-                            <button onclick="document.getElementById('audioPlayer').currentTime += 10;" style="background: #1f2937; color: white; border: 1px solid #374151; padding: 6px 12px; border-radius: 4px; cursor: pointer;">+10s ⏩</button>
-                        </div>
+            if cached_audio:
+                b64 = base64.b64encode(cached_audio["bytes"]).decode("utf-8")
+                player_html = f"""
+                <div style="background-color: #111827; padding: 20px; border-radius: 8px; border: 1px solid #1f2937; margin-top: 10px;">
+                    <audio id="audioPlayer" controls style="width: 100%;">
+                        <source src="data:audio/mp3;base64,{b64}" type="audio/mpeg">
+                    </audio>
+                    <div style="margin-top: 12px; display: flex; gap: 10px;">
+                        <button onclick="document.getElementById('audioPlayer').currentTime -= 10;" style="background: #1f2937; color: white; border: 1px solid #374151; padding: 6px 12px; border-radius: 4px; cursor: pointer;">⏪ -10s</button>
+                        <button onclick="document.getElementById('audioPlayer').currentTime += 10;" style="background: #1f2937; color: white; border: 1px solid #374151; padding: 6px 12px; border-radius: 4px; cursor: pointer;">+10s ⏩</button>
                     </div>
-                    """
-                    st.components.v1.html(player_html, height=160)
+                </div>
+                """
+                st.components.v1.html(player_html, height=160)
+
+                with st.expander("View Debrief Script Transcript"):
+                    for turn in cached_audio["script"]:
+                        label = "Host A (Inquirer)" if turn["speaker"] == "Host_A" else "Host B (Executive)"
+                        st.markdown(f"**{label}:** {turn['text']}")
 
         elif mode == "📊 Visual Slide Deck (Scannable)":
             st.markdown("#### High-Impact Strategy Deck")
@@ -562,3 +625,5 @@ elif st.session_state.current_role == "admin":
                 }
                 st.success(f"Module {mod_code} successfully integrated into the closed-loop repository.")
                 st.rerun()
+
+```
