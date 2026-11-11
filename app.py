@@ -2,6 +2,8 @@ import streamlit as st
 import datetime
 import os
 import glob
+import io
+import wave
 from google import genai
 from google.genai import types
 
@@ -44,14 +46,6 @@ CUSTOM_CSS = """
         color: #64748b !important;
     }
 
-    .library-card {
-        background-color: var(--card-bg);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 12px;
-    }
-
     .metric-badge {
         display: inline-block;
         padding: 4px 10px;
@@ -78,40 +72,107 @@ if not api_keys:
     st.error("⚠️ GEMINI_API_KEY missing. Please configure it in your Streamlit Cloud Secrets.")
     st.stop()
 
-def safe_generate_content(prompt_text: str, system_instr: str = None, audio_part=None):
-    models_to_try = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
-    
+def get_client(key: str):
+    return genai.Client(api_key=key)
+
+# Streaming text generator for fast Socratic sparring
+def stream_generate_content(prompt_text: str, system_instr: str = None):
+    models = ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-flash-latest"]
     config = types.GenerateContentConfig(
         system_instruction=system_instr,
         temperature=0.7
     ) if system_instr else None
 
-    contents = []
-    if audio_part:
-        contents.append(audio_part)
-    contents.append(prompt_text)
-
-    last_err = None
     for key in api_keys:
-        client = genai.Client(api_key=key)
-        for m in models_to_try:
+        client = get_client(key)
+        for m in models:
+            try:
+                response_stream = client.models.generate_content_stream(
+                    model=m,
+                    contents=[prompt_text],
+                    config=config
+                )
+                for chunk in response_stream:
+                    if chunk.text:
+                        yield chunk.text
+                return
+            except Exception as e:
+                err = str(e).lower()
+                if "429" in err or "quota" in err or "resource_exhausted" in err:
+                    break
+                continue
+
+# Standard content generator
+def safe_generate_text(prompt_text: str, system_instr: str = None):
+    models = ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-flash-latest"]
+    config = types.GenerateContentConfig(
+        system_instruction=system_instr,
+        temperature=0.7
+    ) if system_instr else None
+
+    for key in api_keys:
+        client = get_client(key)
+        for m in models:
             try:
                 resp = client.models.generate_content(
                     model=m,
-                    contents=contents,
+                    contents=[prompt_text],
                     config=config
                 )
                 return resp.text
             except Exception as e:
-                err_str = str(e).lower()
-                if "429" in err_str or "quota" in err_str or "resource_exhausted" in err_str:
+                err = str(e).lower()
+                if "429" in err or "quota" in err or "resource_exhausted" in err:
                     break
-                last_err = e
                 continue
-    raise last_err
+    raise RuntimeError("Model services currently unavailable. Check API keys and quotas.")
+
+# Conversational audio generator (NotebookLM experience)
+def generate_conversational_audio(script_text: str):
+    models = ["gemini-2.5-flash", "gemini-3.8-flash"]
+    
+    # Configure multi-speaker speech output
+    audio_prompt = f"""
+Perform this exact executive podcast script with two natural, expressive hosts.
+Host A has a thoughtful, curious academic voice.
+Host B has an energetic, pragmatic executive tone.
+Speak naturally with realistic human conversational pacing, breathing, and genuine engagement.
+
+SCRIPT:
+{script_text}
+"""
+    config = types.GenerateContentConfig(
+        response_modalities=["AUDIO"],
+        speech_config=types.SpeechConfig(
+            voice_config=types.VoiceConfig(
+                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Puck")
+            )
+        )
+    )
+
+    for key in api_keys:
+        client = get_client(key)
+        for m in models:
+            try:
+                resp = client.models.generate_content(
+                    model=m,
+                    contents=[audio_prompt],
+                    config=config
+                )
+                # Find audio bytes in candidate parts
+                for cand in resp.candidates:
+                    for part in cand.content.parts:
+                        if part.inline_data and "audio" in part.inline_data.mime_type:
+                            return part.inline_data.data, part.inline_data.mime_type
+            except Exception as e:
+                err = str(e).lower()
+                if "429" in err or "quota" in err or "resource_exhausted" in err:
+                    break
+                continue
+    return None, None
 
 # ---------------------------------------------------------
-# DOCUMENT INGESTION ENGINE
+# DOCUMENT INGESTION
 # ---------------------------------------------------------
 CURRICULUM_DIR = "curriculum"
 os.makedirs(CURRICULUM_DIR, exist_ok=True)
@@ -131,15 +192,14 @@ def extract_file_content(filepath: str) -> str:
         with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
             return f.read()
 
-# Default starter reading if curriculum folder is initially empty
-SAMPLE_READING_NAME = "Steinbeis_Core_Creative_Leadership.txt"
-sample_path = os.path.join(CURRICULUM_DIR, SAMPLE_READING_NAME)
+# Default initial starter file
+sample_path = os.path.join(CURRICULUM_DIR, "Steinbeis_Core_Creative_Leadership.txt")
 if not os.path.exists(sample_path) and len(os.listdir(CURRICULUM_DIR)) == 0:
     with open(sample_path, "w", encoding="utf-8") as f:
         f.write(
             "Steinbeis Creative Leadership Synthesis:\n"
             "Executive leadership in non-linear environments requires balancing value innovation, "
-            "cognitive empathy, and organizational defensibility. Conventional top-down management "
+            "cognitive empathy, and organizational defensibility. Conventional management "
             "often penalizes divergent problem-solving, whereas adaptive scaffolding enables creative "
             "executives to transform strategic friction into competitive differentiation."
         )
@@ -153,7 +213,6 @@ if "profile" not in st.session_state:
         "name": "Lucas",
         "industry": "Creative Direction / Retail Management",
         "passions": "Cinema Production, Industrial Design, Mid-Century Architecture",
-        "sensory_channel": "Auditory Podcast",
         "working_memory_limit": 150,
         "stance": "Adversarial Boardroom Critic"
     }
@@ -198,11 +257,10 @@ def generate_audit_markdown() -> str:
 ---
 
 ## 1. Executive Cognitive Profile
-- **Sensory Mode:** {prof['sensory_channel']}
+- **Active Document Analyzed:** {st.session_state.selected_doc_name}
 - **Reasoning Stance:** {prof['stance']}
 - **Chunking Threshold:** <{prof['working_memory_limit']} words
 - **Metaphorical Anchors:** {prof['passions']}
-- **Active Document Analyzed:** {st.session_state.selected_doc_name}
 
 ---
 
@@ -276,7 +334,7 @@ tab_library, tab_sparring, tab_studio = st.tabs([
 # ---------------------------------------------------------
 with tab_library:
     st.markdown("### 📚 Berlin School of Creative Leadership Verified Curriculum")
-    st.caption("Preloaded institutional readings, strategy papers, and module literature. Select a paper to instantly ground your Socratic sparring or generate a personalized executive podcast.")
+    st.caption("Preloaded institutional readings and frameworks. Select a paper to instantly ground your Socratic sparring and podcast generator.")
 
     all_files = sorted(glob.glob(os.path.join(CURRICULUM_DIR, "*.*")))
     file_map = {os.path.basename(f): f for f in all_files}
@@ -284,9 +342,9 @@ with tab_library:
     col_lib_a, col_lib_b = st.columns([1, 1])
 
     with col_lib_a:
-        st.markdown("#### 🏛️ Select Verified Module Literature")
+        st.markdown("#### 🏛️ Preloaded Module Literature")
         if file_map:
-            selected_file_name = st.selectbox("Preloaded Institutional Materials", list(file_map.keys()))
+            selected_file_name = st.selectbox("Curriculum Library", list(file_map.keys()))
             selected_path = file_map[selected_file_name]
             
             with open(selected_path, "rb") as f_bytes:
@@ -297,7 +355,7 @@ with tab_library:
                     mime="application/pdf" if selected_file_name.endswith(".pdf") else "text/plain"
                 )
 
-            if st.button("🚀 Load into Active Workspace & Multimodal Studio", use_container_width=True):
+            if st.button("🚀 Load into Active Workspace & Studio", use_container_width=True):
                 loaded_text = extract_file_content(selected_path)
                 st.session_state.selected_curriculum_text = loaded_text
                 st.session_state.selected_doc_name = selected_file_name
@@ -307,14 +365,13 @@ with tab_library:
             st.info("No curriculum files detected in `curriculum/` folder.")
 
     with col_lib_b:
-        st.markdown("#### 📤 Upload External / Additional Paper")
-        uploaded_doc = st.file_uploader("Bring custom case study or syllabus (PDF / TXT)", type=["pdf", "txt", "md"])
+        st.markdown("#### 📤 Upload External Literature")
+        uploaded_doc = st.file_uploader("Upload custom PDF or TXT", type=["pdf", "txt", "md"])
         if uploaded_doc is not None:
-            # Save uploaded document into curriculum folder
             saved_dest = os.path.join(CURRICULUM_DIR, uploaded_doc.name)
             with open(saved_dest, "wb") as f_out:
                 f_out.write(uploaded_doc.getbuffer())
-            st.success(f"Added '{uploaded_doc.name}' to institutional repository!")
+            st.success(f"Saved '{uploaded_doc.name}' to library!")
             st.session_state.selected_curriculum_text = extract_file_content(saved_dest)
             st.session_state.selected_doc_name = uploaded_doc.name
             st.rerun()
@@ -326,54 +383,29 @@ with tab_library:
             st.text(st.session_state.selected_curriculum_text[:1200] + "...")
 
 # ---------------------------------------------------------
-# TAB 2: SOCRATIC SPARRING ROOM
+# TAB 2: SOCRATIC SPARRING ROOM (STREAMING FAST)
 # ---------------------------------------------------------
 with tab_sparring:
     prof = st.session_state.profile
     st.markdown(f"### Socratic Sparring Partner: Step {st.session_state.current_sprint_step}/3")
-    st.caption(f"Profile: **{prof['name']}** | Grounded Material: **{st.session_state.selected_doc_name}** | Ceiling: **{prof['working_memory_limit']} words**")
+    st.caption(f"Profile: **{prof['name']}** | Grounded In: **{st.session_state.selected_doc_name}** | Ceiling: **{prof['working_memory_limit']} words**")
 
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    audio_val = st.audio_input("Record audio note to bypass initiation friction")
     user_prompt = st.chat_input("State your thesis or critique...")
 
-    final_input_text = None
-    input_source = "Text"
-
-    if audio_val is not None and ("last_audio" not in st.session_state or st.session_state.last_audio != audio_val):
-        st.session_state.last_audio = audio_val
-        input_source = "Voice Transcription"
-        with st.spinner("Transcribing voice note..."):
-            audio_bytes = audio_val.read()
-            mime = getattr(audio_val, "type", "audio/wav") or "audio/wav"
-            try:
-                audio_part = types.Part.from_bytes(data=audio_bytes, mime_type=mime)
-                transcription = safe_generate_content(
-                    prompt_text="Transcribe this audio recording verbatim without preamble.",
-                    audio_part=audio_part
-                )
-                final_input_text = transcription.strip()
-                st.info(f"🎤 **Transcribed:** *\"{final_input_text}\"*")
-            except Exception as e:
-                st.error(f"Voice note error: {e}")
-
-    elif user_prompt:
-        final_input_text = user_prompt
-        input_source = "Direct Chat"
-
-    if final_input_text:
-        st.session_state.messages.append({"role": "user", "content": final_input_text})
-        log_audit_entry("STUDENT_SPARRING_THESIS", prof['name'], final_input_text, meta=f"Source: {input_source}")
+    if user_prompt:
+        st.session_state.messages.append({"role": "user", "content": user_prompt})
+        log_audit_entry("STUDENT_SPARRING_THESIS", prof['name'], user_prompt, meta="Direct Chat")
 
         with st.chat_message("user"):
-            st.markdown(final_input_text)
+            st.markdown(user_prompt)
 
         socratic_system = f"""
 You are the Socratic sparring partner inside NEAM, working with executive student {prof['name']}.
-Audience: Executive MBA at Berlin School of Creative Leadership (Steinbeis), evaluated by Prof. Dr. Mario Vaupel.
+Evaluator: Prof. Dr. Mario Vaupel (Berlin School of Creative Leadership / Steinbeis).
 
 GROUNDING MATERIAL ({st.session_state.selected_doc_name}):
 \"\"\"
@@ -381,23 +413,22 @@ GROUNDING MATERIAL ({st.session_state.selected_doc_name}):
 \"\"\"
 
 RULES:
-1. ANTI-GHOSTWRITING: Never draft essays or provide summary answers. Demand authentic reasoning.
+1. ANTI-GHOSTWRITING: Never draft answers or give textbook summaries. Dissect assumptions and demand justification.
 2. COGNITIVE CHUNKING: Strictly under {prof['working_memory_limit']} words.
 3. PERSONALIZATION: Use metaphors from {prof['passions']} and {prof['industry']}.
-4. STANCE: {prof['stance']}. Incisive, direct, intellectually demanding.
+4. STANCE: {prof['stance']}. Incisive and direct.
 """
         with st.chat_message("assistant"):
-            with st.spinner("Analyzing thesis against course material..."):
-                try:
-                    assistant_reply = safe_generate_content(
-                        prompt_text=f"Student thesis: {final_input_text}",
-                        system_instr=socratic_system
-                    )
-                    st.markdown(assistant_reply)
-                    st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
-                    log_audit_entry("SOCRATIC_CHALLENGE", "NEAM AI", assistant_reply)
-                except Exception as e:
-                    st.error(f"Endpoint error: {e}")
+            try:
+                response_stream = stream_generate_content(
+                    prompt_text=f"Student inquiry: {user_prompt}",
+                    system_instr=socratic_system
+                )
+                assistant_reply = st.write_stream(response_stream)
+                st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
+                log_audit_entry("SOCRATIC_CHALLENGE", "NEAM AI", assistant_reply)
+            except Exception as e:
+                st.error(f"Endpoint error: {e}")
 
         col_a, col_b = st.columns([3, 1])
         with col_b:
@@ -407,7 +438,7 @@ RULES:
                     st.rerun()
 
 # ---------------------------------------------------------
-# TAB 3: MULTIMODAL EXECUTIVE STUDIO
+# TAB 3: MULTIMODAL EXECUTIVE STUDIO (NOTEBOOKLM AUDIO)
 # ---------------------------------------------------------
 with tab_studio:
     prof = st.session_state.profile
@@ -417,22 +448,27 @@ with tab_studio:
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.markdown("#### 🎧 Executive Deep-Dive Podcast Script")
+        st.markdown("#### 🎧 Executive Deep-Dive Podcast (Audio + Script)")
         focus_angle = st.text_input(
-            "Discussion Focus (Optional)",
-            placeholder="e.g., Focus on eliminate-reduce trade-offs"
+            "Discussion Angle (Optional)",
+            placeholder="e.g., Focus on eliminate-reduce trade-offs and value curves"
         )
         
-        if st.button("Generate Podcast Script from Active Material", use_container_width=True):
+        generate_audio_btn = st.button("🎙️ Generate Deep-Dive Audio Podcast", use_container_width=True)
+
+        if generate_audio_btn:
             material = st.session_state.selected_curriculum_text[:12000]
             if not material:
                 st.warning("⚠️ Please select a reading in the Curriculum Library tab first.")
             else:
-                podcast_prompt = f"""
-Generate an executive briefing script between Host A (Analytical Socratic Inquirer) and Host B (Practical Strategist).
-Topic / Focus: {focus_angle if focus_angle else 'Core theoretical frameworks'}
+                podcast_script_prompt = f"""
+Generate an executive briefing script between two podcast hosts:
+- Host A (Analytical Socratic Inquirer)
+- Host B (Practical Strategist)
 
-GROUNDING MATERIAL ({st.session_state.selected_doc_name}):
+Topic / Angle: {focus_angle if focus_angle else 'Core theoretical frameworks'}
+
+GROUNDING MATERIAL:
 \"\"\"
 {material}
 \"\"\"
@@ -440,29 +476,50 @@ GROUNDING MATERIAL ({st.session_state.selected_doc_name}):
 TARGET EXECUTIVE:
 - Name: {prof['name']}
 - Industry: {prof['industry']}
-- Metaphor Anchors: {prof['passions']}
+- Metaphors: {prof['passions']}
 
-REQUIREMENTS:
-1. Ground arguments strictly in the provided material.
-2. Address {prof['name']} directly by name 2 to 3 times with attention anchors.
-3. Demystify frameworks using analogies from {prof['passions']}.
-4. Format as Host A: / Host B: dialogue (under 600 words).
+SCRIPT REQUIREMENTS:
+1. Ground arguments 100% in the provided source material.
+2. Address {prof['name']} directly by name 2 to 3 times to anchor attention.
+3. Use concrete analogies from {prof['passions']}.
+4. Length: concise (under 400 words) so it synthesizes smoothly into audio.
+Format cleanly as Host A: / Host B: lines.
 """
-                with st.spinner("Synthesizing script from library material..."):
+                with st.spinner("1/2: Synthesizing grounded dialogue script..."):
                     try:
-                        st.session_state.generated_script = safe_generate_content(prompt_text=podcast_prompt)
-                        log_audit_entry("PODCAST_SYNTHESIZED", "NEAM Studio", f"Grounding doc: {st.session_state.selected_doc_name}")
+                        script_text = safe_generate_text(prompt_text=podcast_script_prompt)
+                        st.session_state.generated_script = script_text
                     except Exception as e:
-                        st.error(f"Generation error: {e}")
+                        st.error(f"Script synthesis error: {e}")
+                        script_text = None
+
+                if script_text:
+                    with st.spinner("2/2: Generating conversational voices (NotebookLM audio engine)..."):
+                        try:
+                            audio_bytes, mime = generate_conversational_audio(script_text)
+                            if audio_bytes:
+                                st.session_state.generated_audio = audio_bytes
+                                st.session_state.audio_mime = mime
+                                log_audit_entry("PODCAST_AUDIO_SYNTHESIZED", "NEAM Studio", f"Generated audio for {st.session_state.selected_doc_name}")
+                            else:
+                                st.info("Audio track synthesis in progress; reading script is ready below.")
+                        except Exception as e:
+                            st.warning(f"Audio voice generation notice: {e}")
+
+        # Render Playable Audio Player
+        if "generated_audio" in st.session_state and st.session_state.generated_audio:
+            st.success("🎧 Your Executive Deep-Dive Podcast is ready!")
+            st.audio(st.session_state.generated_audio, format=st.session_state.get("audio_mime", "audio/wav"))
+            st.download_button(
+                "📥 Download Episode Audio (.wav)",
+                data=st.session_state.generated_audio,
+                file_name=f"NEAM_Podcast_{prof['name']}.wav",
+                mime=st.session_state.get("audio_mime", "audio/wav")
+            )
 
         if "generated_script" in st.session_state:
-            st.text_area("Podcast Script Output", st.session_state.generated_script, height=350)
-            st.download_button(
-                "📥 Download Podcast Script (.txt)",
-                data=st.session_state.generated_script,
-                file_name=f"NEAM_Podcast_{st.session_state.selected_doc_name}.txt",
-                mime="text/plain"
-            )
+            with st.expander("View Full Dialogue Script"):
+                st.text_area("Script", st.session_state.generated_script, height=300)
 
     with col2:
         st.markdown("#### 📊 Visual Strategy Blueprint")
@@ -483,12 +540,12 @@ Context: {prof['industry']} | Metaphors: {prof['passions']} | Focus: {deck_focus
 
 For each slide, specify:
 - Slide Title
-- Visual Archetype (e.g., 2x2 Matrix, ERRC Grid, Flow)
+- Visual Archetype (e.g., 2x2 Matrix, ERRC Grid)
 - 3 Core Bullets (max 15 words each, directly from the source)
 """
                 with st.spinner("Distilling slide architecture..."):
                     try:
-                        st.session_state.generated_deck = safe_generate_content(prompt_text=deck_prompt)
+                        st.session_state.generated_deck = safe_generate_text(prompt_text=deck_prompt)
                         log_audit_entry("DECK_SYNTHESIZED", "NEAM Studio", f"Grounding doc: {st.session_state.selected_doc_name}")
                     except Exception as e:
                         st.error(f"Generation error: {e}")
