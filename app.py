@@ -178,24 +178,10 @@ if not api_keys:
 
 elevenlabs_key = st.secrets.get("ELEVENLABS_API_KEY", None)
 
-def get_gemini_client(key: str):
-    """
-    Inicializa el cliente de Google GenAI soportando tanto claves públicas estándar (AIzaSy...)
-    como credenciales modernas de Google AI Studio (AQ...).
-    """
-    if key.startswith("AQ."):
-        return genai.Client(
-            api_key=key,
-            http_options=types.HttpOptions(
-                headers={"Authorization": f"Bearer {key}"}
-            )
-        )
-    return genai.Client(api_key=key)
-
-# Modelos oficiales válidos de Google GenAI SDK con fallback
 MODEL_CANDIDATES = ["gemini-2.5-flash", "gemini-1.5-flash"]
 
 # Socratic sparring streaming optimizado para ultra-baja latencia (<1s)
+# Con fallback automático entre la Developer API y Vertex AI
 def stream_socratic_response(prompt_text: str, system_instr: str):
     config = types.GenerateContentConfig(
         system_instruction=system_instr,
@@ -203,42 +189,44 @@ def stream_socratic_response(prompt_text: str, system_instr: str):
         max_output_tokens=220,
     )
     last_err = None
-    for model_name in MODEL_CANDIDATES:
-        for key in api_keys:
-            try:
-                client = get_gemini_client(key)
-                response_stream = client.models.generate_content_stream(
-                    model=model_name,
-                    contents=[prompt_text],
-                    config=config
-                )
-                for chunk in response_stream:
-                    if chunk.text:
-                        yield chunk.text
-                return
-            except Exception as e:
-                last_err = e
-                continue
+    for use_vertex in [False, True]:
+        for model_name in MODEL_CANDIDATES:
+            for key in api_keys:
+                try:
+                    client = genai.Client(api_key=key, vertexai=use_vertex)
+                    response_stream = client.models.generate_content_stream(
+                        model=model_name,
+                        contents=[prompt_text],
+                        config=config
+                    )
+                    for chunk in response_stream:
+                        if chunk.text:
+                            yield chunk.text
+                    return
+                except Exception as e:
+                    last_err = e
+                    continue
     yield f"⚠️ Latency spike on the model endpoint. Please retry. ({last_err})"
 
 # Generador de guiones y blueprints
 def generate_studio_text(prompt_text: str):
     config = types.GenerateContentConfig(temperature=0.7)
     last_err = None
-    for model_name in MODEL_CANDIDATES:
-        for key in api_keys:
-            try:
-                client = get_gemini_client(key)
-                resp = client.models.generate_content(
-                    model=model_name,
-                    contents=[prompt_text],
-                    config=config
-                )
-                if resp and resp.text:
-                    return resp.text
-            except Exception as e:
-                last_err = e
-                continue
+    for use_vertex in [False, True]:
+        for model_name in MODEL_CANDIDATES:
+            for key in api_keys:
+                try:
+                    client = genai.Client(api_key=key, vertexai=use_vertex)
+                    resp = client.models.generate_content(
+                        model=model_name,
+                        contents=[prompt_text],
+                        config=config
+                    )
+                    if resp and resp.text:
+                        return resp.text
+                except Exception as e:
+                    last_err = e
+                    continue
     st.error(f"⚠️ Error al conectar con Gemini: {last_err}")
     return None
 
@@ -675,169 +663,4 @@ elif st.session_state.current_role == "student":
         <div class="warrior-avatar">{warrior_icon}</div>
         <div style="flex-grow: 1;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-weight: 700; font-size: 1rem; color: #0f172a;">Student Avatar: {st.session_state.profile['name']} — <span style="color: #047857;">{warrior_title}</span></span>
-                <span style="font-size: 0.8rem; font-weight: 600; color: #64748b;">Progress: {num_completed}/3 Readings • Task: {'Completed ✅' if exercise_done else 'Pending ⏳'}</span>
-            </div>
-            <div style="font-size: 0.82rem; color: #64748b; margin-top: 2px;">{stage_desc}</div>
-            <div class="gear-badges">
-                <span class="gear-badge {badge_helmet}">🪖 Reading A (Helmet)</span>
-                <span class="gear-badge {badge_shield}">🛡️ Reading B (Shield)</span>
-                <span class="gear-badge {badge_sword}">⚔️ Reading C (Blade)</span>
-                <span class="gear-badge {badge_crown}">👑 Final Defense (Crown)</span>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Main Two-Column Layout
-    col_left, col_right = st.columns([1, 1], gap="large")
-
-    with col_left:
-        st.markdown("<div class='instruction-label'>Module Instructions</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='instruction-text'>{active_mod['instructions']}</div>", unsafe_allow_html=True)
-
-        st.markdown("<hr style='margin: 1rem 0; border: none; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
-        st.markdown("<div class='instruction-label'>Curriculum Resources (Select & Transform)</div>", unsafe_allow_html=True)
-
-        for res in active_mod["resources"]:
-            is_done = res["id"] in st.session_state.completed_resources
-            icon_status = "✅" if is_done else "📄"
-            
-            with st.container():
-                c1, c2 = st.columns([3, 1])
-                with c1:
-                    st.markdown(f"**{icon_status} {res['title']}**")
-                    st.caption(f"{res['type']} • Status: {'Completed' if is_done else 'Pending'}")
-                with c2:
-                    if st.button("Focus 🎯", key=f"focus_{res['id']}", use_container_width=True):
-                        st.session_state.active_reading = res
-                        st.rerun()
-
-        st.markdown("<hr style='margin: 1.2rem 0; border: none; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
-        curr_r = st.session_state.active_reading
-        st.markdown(f"**Focused Material:** `{curr_r['title']}`")
-
-        t_read, t_audio, t_slides = st.tabs(["📖 Read Summary", "🎙️ Neural Audio (±10s)", "📊 Slide Deck"])
-
-        with t_read:
-            st.info(curr_r["content"])
-            if st.button(f"Mark '{curr_r['title']}' as Read (+Equip Warrior)", use_container_width=True):
-                st.session_state.completed_resources.add(curr_r["id"])
-                st.toast("⚔️ Gear equipped! Armor upgraded.", icon="🛡️")
-                st.rerun()
-
-        with t_audio:
-            st.caption("Generate a broadcast-quality dual-voice discussion between Host A & Host B grounded in this paper.")
-            if st.button("Synthesize Neural Podcast", key="gen_pod_btn", use_container_width=True):
-                prof = st.session_state.profile
-                script_prompt = f"""
-Executive brief script between Host A (inquiring professor) and Host B (pragmatic strategist).
-Material: {curr_r['content']}
-Executive: {prof['name']} ({prof['industry']}) | Metaphors: {prof['passions']}
-Address {prof['name']} directly twice. Keep concise (approx 200 words).
-Format strictly alternating:
-Host A: ...
-Host B: ...
-"""
-                with st.spinner("Synthesizing script and rendering neural audio..."):
-                    script = generate_studio_text(script_prompt)
-                    st.session_state.active_script = script
-                    if script and elevenlabs_key:
-                        audio_b = synthesize_dual_voice_podcast(script, elevenlabs_key)
-                        st.session_state.active_audio = audio_b
-                        st.session_state.completed_resources.add(curr_r["id"])
-                        st.toast("🎙️ Podcast finished! Warrior weapon equipped.", icon="⚔️")
-                    elif not elevenlabs_key:
-                        st.warning("Please configure ELEVENLABS_API_KEY in Secrets for multi-speaker neural audio.")
-
-            if "active_audio" in st.session_state and st.session_state.active_audio:
-                render_podcast_player(st.session_state.active_audio, title=curr_r['title'])
-                st.download_button(
-                    label="📥 Download Episode (.mp3)",
-                    data=st.session_state.active_audio,
-                    file_name=f"Podcast_{curr_r['id']}.mp3",
-                    mime="audio/mp3",
-                    use_container_width=True
-                )
-
-            if "active_script" in st.session_state and st.session_state.active_script:
-                with st.expander("View Full Dialogue Transcript"):
-                    st.text(st.session_state.active_script)
-
-        with t_slides:
-            st.caption("Visual strategy blueprint for executive synthesis.")
-            if st.button("Generate 3-Slide Architecture", use_container_width=True):
-                deck_prompt = f"Create a 3-slide visual architecture grounded in: {curr_r['content']} for {st.session_state.profile['name']}"
-                with st.spinner("Drafting deck architecture..."):
-                    deck = generate_studio_text(deck_prompt)
-                    if deck:
-                        st.markdown(deck)
-
-    with col_right:
-        st.markdown("<div class='instruction-label'>Module Exercise & Defense Task</div>", unsafe_allow_html=True)
-        st.markdown(f"""
-        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px;">
-            <span style="font-weight: 700; color: #1e40af; font-size: 0.88rem;">🎯 Academic Milestone Objective:</span>
-            <div style="font-size: 0.88rem; color: #1e3a8a; margin-top: 4px; line-height: 1.45;">{active_mod['exercise']}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("<div class='instruction-label'>Socratic Sparring Partner (Defense Chamber)</div>", unsafe_allow_html=True)
-        st.caption(f"Adversarial sparring grounded in Steinbeis curriculum. Limit: <{st.session_state.profile['working_memory_limit']} words.")
-
-        chat_container = st.container(height=360)
-        with chat_container:
-            for msg in st.session_state.messages:
-                with st.chat_message(msg["role"]):
-                    st.markdown(msg["content"])
-
-        sparring_input = st.chat_input("Defend your thesis or question assumptions...")
-
-        if sparring_input:
-            prof = st.session_state.profile
-            st.session_state.messages.append({"role": "user", "content": sparring_input})
-            with chat_container:
-                with st.chat_message("user"):
-                    st.markdown(sparring_input)
-
-                socratic_system = f"""
-You are the Socratic sparring partner inside NEAM for executive {prof['name']}.
-Evaluator: Prof. Dr. Mario Vaupel.
-MATERIAL: {st.session_state.active_reading['content']}
-EXERCISE: {active_mod['exercise']}
-
-RULES:
-1. Anti-Ghostwriting: Challenge assumptions, do not write the student's assignment.
-2. Max words: <{prof['working_memory_limit']}.
-3. Metaphors: {prof['passions']} and {prof['industry']}.
-4. Stance: {prof['stance']}. Incisive, intellectual, direct.
-"""
-                with st.chat_message("assistant"):
-                    reply_stream = stream_socratic_response(f"Student: {sparring_input}", socratic_system)
-                    reply = st.write_stream(reply_stream)
-                    st.session_state.messages.append({"role": "assistant", "content": reply})
-
-        st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
-        if st.button("🏆 Submit Final Exercise Defense to Faculty", use_container_width=True):
-            if len(st.session_state.messages) < 2:
-                st.warning("⚠️ You must engage in at least one round of Socratic defense before final submission.")
-            else:
-                st.session_state.exercise_submitted = True
-                st.balloons()
-                st.success("🎉 Exercise Successfully Defended & Submitted! Crown of Executive Mastery Awarded.")
-                st.rerun()
-
-    # Footer Audit Log
-    st.markdown("<hr style='margin: 2.5rem 0 1rem 0; border: none; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
-    col_f1, col_f2 = st.columns([2, 1])
-    with col_f1:
-        st.caption("NEAM • Neurodivergent Executive AI Module • Steinbeis University / Berlin School of Creative Leadership")
-    with col_f2:
-        audit_data = f"# NEAM Academic Audit Log\nStudent: {st.session_state.profile['name']}\nCompleted Resources: {len(st.session_state.completed_resources)}/3\nSubmitted: {st.session_state.exercise_submitted}\nDate: {datetime.datetime.now().isoformat()}"
-        st.download_button(
-            "📥 Export Proof-of-Work Audit Dossier",
-            data=audit_data,
-            file_name=f"NEAM_Audit_{st.session_state.profile['name']}.md",
-            mime="text/markdown",
-            use_container_width=True
-        )
+                <span style="font-weight: 700;
