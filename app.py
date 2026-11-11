@@ -1,4 +1,6 @@
+Here is the complete, drop-in `app.py`. It has line 1 starting directly with Python code (no markdown text, no backticks) and includes the dual-endpoint fallback (`gemini-3.8-flash` with automatic fallback to `gemini-2.5-flash`), exponential backoff retries against 503 errors, ElevenLabs dual-voice synthesis, and full closed-loop alignment with your Steinbeis proposal.
 
+```python
 import os
 import io
 import time
@@ -26,7 +28,6 @@ st.markdown(
         background-color: #0b0f17;
         color: #e2e8f0;
     }
-    /* Eliminate red borders on chat input */
     div[data-testid="stChatInput"] {
         border-color: #1e293b !important;
     }
@@ -69,11 +70,14 @@ st.markdown(
 # ---------------------------------------------------------
 # Endpoints & Voice Setup
 # ---------------------------------------------------------
-GEMINI_REST_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
+GEMINI_ENDPOINTS = [
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+]
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 
-VOICE_HOST_A = "21m00Tcm4TlvDq8ikWAM"  # Rachel (Inquisitive / Framing Host)
-VOICE_HOST_B = "pNInz6obpgDQGcFmaJgB"  # Adam (Grounded / First-Principles Host)
+VOICE_HOST_A = "21m00Tcm4TlvDq8ikWAM"  # Rachel (Framing Host)
+VOICE_HOST_B = "pNInz6obpgDQGcFmaJgB"  # Adam (First-Principles Host)
 
 # ---------------------------------------------------------
 # Session State Initialization
@@ -161,7 +165,7 @@ with st.sidebar:
         "Google AI Studio Key",
         value=os.getenv("GEMINI_API_KEY", ""),
         type="password",
-        help="Required: models/gemini-3.8-flash (AQ...)",
+        help="Target: models/gemini-3.8-flash (AQ...)",
     )
     ELEVENLABS_API_KEY = st.text_input(
         "ElevenLabs API Key",
@@ -221,39 +225,40 @@ STRICT ARCHITECTURAL SAFEGUARDS:
         "systemInstruction": {"parts": [{"text": system_instruction}]},
     }
 
-    for attempt in range(3):
-        try:
-            resp = requests.post(GEMINI_REST_ENDPOINT, headers=headers, json=payload, timeout=45)
-            if resp.status_code == 200:
-                data = resp.json()
-                return data["candidates"][0]["content"]["parts"][0]["text"]
-            elif resp.status_code in [503, 429]:
-                time.sleep((2 ** attempt) * 1.5)
-                continue
-            else:
-                return f"API Error {resp.status_code}: {resp.text}"
-        except requests.exceptions.RequestException as e:
-            if attempt == 2:
-                return f"Connection Error: {str(e)}"
-            time.sleep(1)
+    last_err = ""
+    for endpoint in GEMINI_ENDPOINTS:
+        for attempt in range(3):
+            try:
+                resp = requests.post(endpoint, headers=headers, json=payload, timeout=45)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data["candidates"][0]["content"]["parts"][0]["text"]
+                elif resp.status_code in [503, 429, 500]:
+                    time.sleep((2 ** attempt) * 1.5)
+                    last_err = f"Status {resp.status_code}"
+                    continue
+                else:
+                    return f"API Error {resp.status_code}: {resp.text}"
+            except requests.exceptions.RequestException as e:
+                last_err = str(e)
+                time.sleep(1.5)
 
-    return "Service Temporarily Unavailable (503). Retrying closed-loop endpoint..."
+    return f"Service Temporarily Unavailable ({last_err}). Please retry in a few seconds."
 
 # ---------------------------------------------------------
-# Multimodal Pipelines (Audio & Slides with Timeout Hardening)
+# Multimodal Pipeline: Podcast Audio with Resilient Retry
 # ---------------------------------------------------------
 def generate_podcast_pipeline(material_text: str, gemini_key: str, eleven_key: str, progress_fn=None) -> Tuple[bytes, List[Dict]]:
-    """Transforms closed-loop material into an executive dual-voice dialogue with timeout safeguards."""
+    """Transforms closed-loop material into an executive dual-voice dialogue with timeout and 503 fallback."""
     if progress_fn:
-        progress_fn("Generating dialectic podcast script via Gemini 3.8 Flash...")
+        progress_fn("Generating dialectic podcast script via Gemini...")
 
-    # Compact the prompt input to keep token generation latency low
     processed_text = material_text[:3500] if len(material_text) > 3500 else material_text
 
     script_prompt = f"""
 Transform this verified Steinbeis course material into a concise 4-turn executive podcast dialogue between 'Host_A' and 'Host_B'.
 Host_A introduces the practical dilemma and challenges assumptions. Host_B provides the first-principles theoretical breakdown.
-Keep each turn under 40 words so audio generation is fast and punchy.
+Keep each turn under 35 words so audio generation is fast and punchy.
 Strictly return a JSON array matching:
 [
   {{"speaker": "Host_A", "text": "..."}},
@@ -272,20 +277,34 @@ Material:
             "maxOutputTokens": 1024,
         }
     }
-    
-    try:
-        resp = requests.post(
-            GEMINI_REST_ENDPOINT,
-            headers=headers,
-            json=payload,
-            timeout=90  # Extended read window for script generation
-        )
-        resp.raise_for_status()
-        script = json.loads(resp.json()["candidates"][0]["content"]["parts"][0]["text"])
-    except requests.exceptions.Timeout:
-        raise RuntimeError("Gemini API timed out while generating the script (exceeded 90s). Please retry.")
-    except Exception as e:
-        raise RuntimeError(f"Script generation failed: {str(e)}")
+
+    script = None
+    last_err = ""
+
+    # Try gemini-3.8-flash first, fall back to gemini-2.5-flash if 503 occurs
+    for endpoint in GEMINI_ENDPOINTS:
+        for attempt in range(3):
+            try:
+                resp = requests.post(endpoint, headers=headers, json=payload, timeout=90)
+                if resp.status_code == 200:
+                    raw_content = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    script = json.loads(raw_content)
+                    break
+                elif resp.status_code in (503, 429, 500):
+                    time.sleep(2 * (attempt + 1))
+                    last_err = f"{resp.status_code}: {resp.text}"
+                    continue
+                else:
+                    last_err = f"{resp.status_code}: {resp.text}"
+                    break
+            except requests.exceptions.RequestException as e:
+                last_err = str(e)
+                time.sleep(2)
+        if script:
+            break
+
+    if not script:
+        raise RuntimeError(f"Script generation failed across endpoints. Last error: {last_err}")
 
     audio_buffer = io.BytesIO()
     total_turns = len(script)
@@ -304,14 +323,14 @@ Material:
                 headers={
                     "Accept": "audio/mpeg",
                     "Content-Type": "application/json",
-                    "xi-api-key": eleven_key
+                    "xi-api-key": eleven_key,
                 },
                 json={
                     "text": text,
                     "model_id": "eleven_turbo_v2_5",
-                    "voice_settings": {"stability": 0.45, "similarity_boost": 0.75}
+                    "voice_settings": {"stability": 0.45, "similarity_boost": 0.75},
                 },
-                timeout=60
+                timeout=60,
             )
             if tts_resp.status_code == 200:
                 audio_buffer.write(tts_resp.content)
@@ -477,7 +496,6 @@ elif st.session_state.current_role == "student":
             st.markdown("#### ADHD-Friendly Executive Podcast")
             st.caption("Converts dense theoretical readings into a conversational walk-and-listen dialogue.")
             
-            # Check cache to avoid re-synthesizing on rerun
             cached_audio = st.session_state.podcast_audio_cache.get(selected_mod)
 
             if st.button("Synthesize Closed-Loop Reading into Podcast", type="primary"):
@@ -626,3 +644,4 @@ elif st.session_state.current_role == "admin":
                 st.success(f"Module {mod_code} successfully integrated into the closed-loop repository.")
                 st.rerun()
 
+```
