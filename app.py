@@ -4,12 +4,13 @@ import os
 import io
 import re
 import base64
+import requests
 import streamlit.components.v1 as components
 from google import genai
 from google.genai import types
 
 # ---------------------------------------------------------
-# PAGE CONFIGURATION & THEME (CLEAN WHITE / COBALT / EMERALD)
+# PAGE CONFIGURATION & THEME
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="NEAM | Executive Academic Portal",
@@ -59,7 +60,6 @@ CUSTOM_CSS = """
         border-radius: 12px;
         padding: 24px;
         text-align: center;
-        transition: all 0.2s ease-in-out;
         box-shadow: 0 2px 4px rgba(0,0,0,0.02);
     }
     .role-card:hover {
@@ -156,7 +156,6 @@ CUSTOM_CSS = """
         border-radius: 8px;
         font-weight: 600;
         border: none;
-        transition: all 0.2s;
     }
     .stButton>button:hover {
         background-color: #1d4ed8;
@@ -173,70 +172,92 @@ raw_keys = st.secrets.get("GEMINI_API_KEY", "")
 api_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
 
 if not api_keys:
-    st.error("⚠️ GEMINI_API_KEY missing. Please configure it in Streamlit Secrets.")
+    st.error("⚠️ GEMINI_API_KEY missing in Streamlit Secrets.")
     st.stop()
 
 elevenlabs_key = st.secrets.get("ELEVENLABS_API_KEY", None)
+PRIMARY_MODEL = "gemini-2.5-flash"
 
-MODEL_CANDIDATES = ["gemini-2.5-flash", "gemini-1.5-flash"]
+def call_gemini_api(prompt_text: str, system_instr: str = "", stream: bool = False):
+    """
+    Robust caller handling standard keys and AI Studio Auth Keys (AQ...)
+    via REST fallback if SDK client raises protocol blocks.
+    """
+    key = api_keys[0]
+    
+    # 1. Try SDK Client
+    try:
+        client = genai.Client(api_key=key)
+        cfg = types.GenerateContentConfig(
+            system_instruction=system_instr if system_instr else None,
+            temperature=0.6,
+            max_output_tokens=300
+        )
+        if stream:
+            return client.models.generate_content_stream(
+                model=PRIMARY_MODEL,
+                contents=[prompt_text],
+                config=cfg
+            )
+        resp = client.models.generate_content(
+            model=PRIMARY_MODEL,
+            contents=[prompt_text],
+            config=cfg
+        )
+        return resp.text
+    except Exception:
+        pass
 
-# Socratic sparring streaming optimizado para ultra-baja latencia (<1s)
-# Con fallback automático entre la Developer API y Vertex AI
+    # 2. Direct HTTP Fallback supporting x-goog-api-key header
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{PRIMARY_MODEL}:generateContent"
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": key
+    }
+    payload = {
+        "contents": [{"parts": [{"text": prompt_text}]}],
+        "generationConfig": {"temperature": 0.6, "maxOutputTokens": 300}
+    }
+    if system_instr:
+        payload["systemInstruction"] = {"parts": [{"text": system_instr}]}
+
+    res = requests.post(url, headers=headers, json=payload, timeout=20)
+    if res.status_code == 200:
+        data = res.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    else:
+        raise RuntimeError(f"HTTP {res.status_code}: {res.text}")
+
 def stream_socratic_response(prompt_text: str, system_instr: str):
-    config = types.GenerateContentConfig(
-        system_instruction=system_instr,
-        temperature=0.6,
-        max_output_tokens=220,
-    )
-    last_err = None
-    for use_vertex in [False, True]:
-        for model_name in MODEL_CANDIDATES:
-            for key in api_keys:
-                try:
-                    client = genai.Client(api_key=key, vertexai=use_vertex)
-                    response_stream = client.models.generate_content_stream(
-                        model=model_name,
-                        contents=[prompt_text],
-                        config=config
-                    )
-                    for chunk in response_stream:
-                        if chunk.text:
-                            yield chunk.text
-                    return
-                except Exception as e:
-                    last_err = e
-                    continue
-    yield f"⚠️ Latency spike on the model endpoint. Please retry. ({last_err})"
+    try:
+        stream_obj = call_gemini_api(prompt_text, system_instr, stream=True)
+        if hasattr(stream_obj, "__iter__") and not isinstance(stream_obj, str):
+            for chunk in stream_obj:
+                if chunk.text:
+                    yield chunk.text
+            return
+        yield str(stream_obj)
+    except Exception:
+        # Fallback to single-call text generator
+        try:
+            full_txt = call_gemini_api(prompt_text, system_instr, stream=False)
+            yield full_txt
+        except Exception as e:
+            yield f"⚠️ API Error: {e}"
 
-# Generador de guiones y blueprints
 def generate_studio_text(prompt_text: str):
-    config = types.GenerateContentConfig(temperature=0.7)
-    last_err = None
-    for use_vertex in [False, True]:
-        for model_name in MODEL_CANDIDATES:
-            for key in api_keys:
-                try:
-                    client = genai.Client(api_key=key, vertexai=use_vertex)
-                    resp = client.models.generate_content(
-                        model=model_name,
-                        contents=[prompt_text],
-                        config=config
-                    )
-                    if resp and resp.text:
-                        return resp.text
-                except Exception as e:
-                    last_err = e
-                    continue
-    st.error(f"⚠️ Error al conectar con Gemini: {last_err}")
-    return None
+    try:
+        return call_gemini_api(prompt_text, stream=False)
+    except Exception as e:
+        st.error(f"⚠️ Error: {e}")
+        return None
 
-# Multi-speaker dual-voice neural audio generator (ElevenLabs API v1.x+)
 def synthesize_dual_voice_podcast(script_text: str, api_token: str) -> bytes:
     from elevenlabs.client import ElevenLabs
     client_tts = ElevenLabs(api_key=api_token)
     
-    VOICE_HOST_A = "nPczCjzI2devNBz1zQrb"  # Brian
-    VOICE_HOST_B = "Xb7hH8MSUJpSbSDYk0k2"  # Alice
+    VOICE_HOST_A = "nPczCjzI2devNBz1zQrb"
+    VOICE_HOST_B = "Xb7hH8MSUJpSbSDYk0k2"
 
     lines = script_text.strip().split("\n")
     combined_audio = io.BytesIO()
@@ -245,9 +266,6 @@ def synthesize_dual_voice_podcast(script_text: str, api_token: str) -> bytes:
         line = line.strip()
         if not line:
             continue
-        
-        speaker = None
-        utterance = ""
         
         if line.startswith("**Host A:**") or line.startswith("Host A:"):
             speaker = VOICE_HOST_A
@@ -279,25 +297,21 @@ def synthesize_dual_voice_podcast(script_text: str, api_token: str) -> bytes:
     combined_audio.seek(0)
     return combined_audio.read()
 
-# Reproductor interactivo con controles de salto +-10s
 def render_podcast_player(audio_bytes: bytes, title: str = "Executive Briefing"):
     b64_audio = base64.b64encode(audio_bytes).decode()
     player_html = f"""
-    <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px 20px; margin: 12px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+    <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px 20px; margin: 12px 0;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <span style="font-weight: 700; font-size: 0.9rem; color: #0f172a;">🎧 {title}</span>
             <span id="audio-time" style="font-size: 0.8rem; font-family: monospace; color: #64748b; font-weight: 600;">00:00 / 00:00</span>
         </div>
-        
         <audio id="neam-audio" src="data:audio/mp3;base64,{b64_audio}" preload="metadata"></audio>
-        
         <input type="range" id="seek-bar" value="0" min="0" max="100" style="width: 100%; accent-color: #059669; cursor: pointer; margin-bottom: 12px;">
-
         <div style="display: flex; justify-content: center; align-items: center; gap: 14px;">
             <button onclick="skipTime(-10)" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 14px; font-weight: 700; color: #1e293b; cursor: pointer; font-size: 0.82rem;">
                 ⏪ -10s
             </button>
-            <button id="play-pause-btn" onclick="togglePlay()" style="background: #1e40af; border: none; border-radius: 50%; width: 42px; height: 42px; color: #ffffff; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(30,64,175,0.25);">
+            <button id="play-pause-btn" onclick="togglePlay()" style="background: #1e40af; border: none; border-radius: 50%; width: 42px; height: 42px; color: #ffffff; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                 ▶
             </button>
             <button onclick="skipTime(10)" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 14px; font-weight: 700; color: #1e293b; cursor: pointer; font-size: 0.82rem;">
@@ -305,52 +319,36 @@ def render_podcast_player(audio_bytes: bytes, title: str = "Executive Briefing")
             </button>
         </div>
     </div>
-
     <script>
         const audio = document.getElementById('neam-audio');
         const playBtn = document.getElementById('play-pause-btn');
         const seekBar = document.getElementById('seek-bar');
         const timeDisplay = document.getElementById('audio-time');
 
-        function formatTime(seconds) {{
-            const mins = Math.floor(seconds / 60) || 0;
-            const secs = Math.floor(seconds % 60) || 0;
-            return `${{mins < 10 ? '0' : ''}}${{mins}}:${{secs < 10 ? '0' : ''}}${{secs}}`;
+        function formatTime(sec) {{
+            const m = Math.floor(sec / 60) || 0;
+            const s = Math.floor(sec % 60) || 0;
+            return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
         }}
-
         function togglePlay() {{
-            if (audio.paused) {{
-                audio.play();
-                playBtn.innerHTML = '⏸';
-                playBtn.style.background = '#059669';
-            }} else {{
-                audio.pause();
-                playBtn.innerHTML = '▶';
-                playBtn.style.background = '#1e40af';
-            }}
+            if (audio.paused) {{ audio.play(); playBtn.innerHTML = '⏸'; }}
+            else {{ audio.pause(); playBtn.innerHTML = '▶'; }}
         }}
-
-        function skipTime(seconds) {{
-            audio.currentTime = Math.min(Math.max(audio.currentTime + seconds, 0), audio.duration);
+        function skipTime(s) {{
+            audio.currentTime = Math.min(Math.max(audio.currentTime + s, 0), audio.duration);
         }}
-
         audio.addEventListener('loadedmetadata', () => {{
-            timeDisplay.innerText = `00:00 / ${{formatTime(audio.duration)}}`;
+            timeDisplay.innerText = '00:00 / ' + formatTime(audio.duration);
         }});
-
         audio.addEventListener('timeupdate', () => {{
-            const progress = (audio.currentTime / audio.duration) * 100 || 0;
-            seekBar.value = progress;
-            timeDisplay.innerText = `${{formatTime(audio.currentTime)}} / ${{formatTime(audio.duration)}}`;
+            seekBar.value = (audio.currentTime / audio.duration) * 100 || 0;
+            timeDisplay.innerText = formatTime(audio.currentTime) + ' / ' + formatTime(audio.duration);
         }});
-
         seekBar.addEventListener('input', () => {{
             audio.currentTime = (seekBar.value / 100) * audio.duration;
         }});
-
         audio.addEventListener('ended', () => {{
             playBtn.innerHTML = '▶';
-            playBtn.style.background = '#1e40af';
             seekBar.value = 0;
         }});
     </script>
@@ -358,7 +356,7 @@ def render_podcast_player(audio_bytes: bytes, title: str = "Executive Briefing")
     components.html(player_html, height=140)
 
 # ---------------------------------------------------------
-# GLOBAL STATE & CURRICULUM ARCHITECTURE
+# GLOBAL STATE & INITIALIZATION
 # ---------------------------------------------------------
 if "current_role" not in st.session_state:
     st.session_state.current_role = None
@@ -432,25 +430,24 @@ if "active_reading" not in st.session_state:
     st.session_state.active_reading = active_mod["resources"][0]
 
 # ---------------------------------------------------------
-# VIEW 1: LANDING PAGE (ROLE SELECTION)
+# VIEW ROUTING
 # ---------------------------------------------------------
 if st.session_state.current_role is None:
     st.markdown("""
     <div style="text-align: center; margin: 3rem 0 2rem 0;">
-        <span style="font-size: 0.85rem; font-weight: 700; color: #1e40af; background: #dbeafe; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em;">
+        <span style="font-size: 0.85rem; font-weight: 700; color: #1e40af; background: #dbeafe; padding: 4px 12px; border-radius: 20px;">
             Steinbeis University • Berlin School of Creative Leadership
         </span>
-        <h1 style="font-size: 2.4rem; font-weight: 800; color: #0f172a; margin-top: 12px; letter-spacing: -0.03em;">
+        <h1 style="font-size: 2.4rem; font-weight: 800; color: #0f172a; margin-top: 12px;">
             NEAM Executive Academic Portal
         </h1>
         <p style="font-size: 1.05rem; color: #64748b; max-width: 650px; margin: 0 auto;">
-            Closed-loop cognitive scaffolding and verified Socratic assessment gateway. Select your institutional role to enter.
+            Closed-loop cognitive scaffolding and verified Socratic assessment gateway.
         </p>
     </div>
     """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3, gap="medium")
-
     with col1:
         st.markdown("""
         <div class="role-card">
@@ -487,9 +484,6 @@ if st.session_state.current_role is None:
             st.session_state.current_role = "student"
             st.rerun()
 
-# ---------------------------------------------------------
-# VIEW 2: UNIVERSITY ADMIN ENVIRONMENT
-# ---------------------------------------------------------
 elif st.session_state.current_role == "admin":
     st.markdown("""
     <div class="portal-banner">
@@ -505,8 +499,6 @@ elif st.session_state.current_role == "admin":
         st.rerun()
 
     st.markdown("### 📤 Upload & Configure Module Curriculum")
-    st.caption("Materials uploaded here are immediately distributed to the Executive Student and Faculty review spaces.")
-
     with st.form("admin_module_creator"):
         c1, c2 = st.columns(2)
         with c1:
@@ -521,15 +513,15 @@ elif st.session_state.current_role == "admin":
 
         st.markdown("#### 📚 Active Readings (3 Papers Required)")
         r1_title = st.text_input("Reading 1 Title", value=active_mod["resources"][0]["title"])
-        r1_body = st.text_area("Reading 1 Key Excerpt / Core Thesis", value=active_mod["resources"][0]["content"])
+        r1_body = st.text_area("Reading 1 Key Excerpt", value=active_mod["resources"][0]["content"])
         
         r2_title = st.text_input("Reading 2 Title", value=active_mod["resources"][1]["title"])
-        r2_body = st.text_area("Reading 2 Key Excerpt / Core Thesis", value=active_mod["resources"][1]["content"])
+        r2_body = st.text_area("Reading 2 Key Excerpt", value=active_mod["resources"][1]["content"])
 
         r3_title = st.text_input("Reading 3 Title", value=active_mod["resources"][2]["title"])
-        r3_body = st.text_area("Reading 3 Key Excerpt / Core Thesis", value=active_mod["resources"][2]["content"])
+        r3_body = st.text_area("Reading 3 Key Excerpt", value=active_mod["resources"][2]["content"])
 
-        if st.form_submit_button("💾 Save & Publish Module to Portal", use_container_width=True):
+        if st.form_submit_button("💾 Save & Publish Module", use_container_width=True):
             st.session_state.curriculum_modules["mod_1"] = {
                 "title": mod_title,
                 "tag": mod_tag,
@@ -543,11 +535,8 @@ elif st.session_state.current_role == "admin":
                 ]
             }
             st.session_state.active_reading = st.session_state.curriculum_modules["mod_1"]["resources"][0]
-            st.success("✅ Module updated successfully and propagated across the entire workspace!")
+            st.success("✅ Module updated successfully!")
 
-# ---------------------------------------------------------
-# VIEW 3: TEACHER / FACULTY EVALUATOR ENVIRONMENT
-# ---------------------------------------------------------
 elif st.session_state.current_role == "teacher":
     st.markdown("""
     <div class="portal-banner">
@@ -562,10 +551,7 @@ elif st.session_state.current_role == "teacher":
         st.session_state.current_role = None
         st.rerun()
 
-    st.markdown("### 📋 Student Submissions & Human Reasoning Audits")
-    
     col_t1, col_t2 = st.columns([1, 1], gap="large")
-
     with col_t1:
         st.markdown("#### 🎓 Student Status: Lucas")
         st.markdown(f"""
@@ -574,11 +560,8 @@ elif st.session_state.current_role == "teacher":
         - **Task Status:** {'Submitted for Grading ✅' if st.session_state.exercise_submitted else 'In Progress ⏳'}
         - **Socratic Interaction Rounds:** {len(st.session_state.messages) // 2} rounds
         """)
-
         st.markdown("---")
         st.markdown("#### 📜 Proof-of-Work Socratic Reasoning Ledger")
-        st.caption("Verifies human dialectical thinking vs generative ghostwriting.")
-
         if st.session_state.messages:
             for idx, msg in enumerate(st.session_state.messages):
                 actor = "Student (Lucas)" if msg["role"] == "user" else "Socratic Sparring AI"
@@ -594,19 +577,11 @@ elif st.session_state.current_role == "teacher":
         else:
             st.success("🎯 Capstone defense submitted by Lucas!")
             grade = st.selectbox("Qualitative Assessment Grade", ["Distinction (1.0 - 1.3)", "Merit (1.7 - 2.0)", "Pass (2.3 - 3.0)", "Revise & Resubmit"])
-            feedback = st.text_area("Faculty Socratic Critique & Feedback", placeholder="Assess the integration of non-linear scaffolding and theoretical defensibility...")
-            
-            if st.button("Publish Faculty Evaluation & Record to Dossier", use_container_width=True):
+            feedback = st.text_area("Faculty Socratic Critique & Feedback")
+            if st.button("Publish Evaluation", use_container_width=True):
                 st.session_state.faculty_grades["Lucas"] = {"grade": grade, "feedback": feedback, "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
-                st.success("✅ Evaluation recorded and stored in student record!")
+                st.success("✅ Evaluation recorded!")
 
-        if "Lucas" in st.session_state.faculty_grades:
-            fg = st.session_state.faculty_grades["Lucas"]
-            st.info(f"**Recorded Grade:** {fg['grade']}\n\n**Feedback:** {fg['feedback']}\n\n*Logged on: {fg['date']}*")
-
-# ---------------------------------------------------------
-# VIEW 4: STUDENT ENVIRONMENT (TWO-COLUMN WORKSPACE)
-# ---------------------------------------------------------
 elif st.session_state.current_role == "student":
     st.markdown(f"""
     <div class="portal-banner">
@@ -614,53 +589,134 @@ elif st.session_state.current_role == "student":
             <div class="portal-brand">🎓 Steinbeis NEXT | Executive Workspace</div>
             <div class="portal-sub">{active_mod['tag']} • {active_mod['submodule']}</div>
         </div>
-        <div style="text-align: right;">
-            <span style="font-size: 0.85rem; font-weight: 600; color: #047857; background: #ecfdf5; padding: 6px 12px; border-radius: 20px; border: 1px solid #a7f3d0;">
+        <div>
+            <span style="font-size: 0.85rem; font-weight: 600; color: #047857; background: #ecfdf5; padding: 6px 12px; border-radius: 20px;">
                 ● Evaluator: Prof. Dr. Mario Vaupel Active
             </span>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    col_nav, _ = st.columns([1, 4])
-    with col_nav:
-        if st.button("← Switch Institutional Role"):
-            st.session_state.current_role = None
-            st.rerun()
+    if st.button("← Switch Institutional Role"):
+        st.session_state.current_role = None
+        st.rerun()
 
-    # Gamification Avatar HUD
     num_completed = len(st.session_state.completed_resources)
     exercise_done = st.session_state.exercise_submitted
 
     if exercise_done:
         warrior_icon = "👑"
         warrior_title = "Grand Executive Strategist"
-        stage_desc = "Mastery Level Reached. Socratic thesis defended and sent to Prof. Dr. Mario Vaupel."
+        stage_desc = "Mastery Level Reached. Thesis submitted."
     elif num_completed == 3:
         warrior_icon = "⚔️"
         warrior_title = "Socratic Champion"
-        stage_desc = "Fully Armed with Helmet, Shield & Blade. Ready for Final Boardroom Defense."
+        stage_desc = "Fully Armed. Ready for Final Defense."
     elif num_completed == 2:
         warrior_icon = "🛡️"
         warrior_title = "Defensive Strategist"
-        stage_desc = "Shield of Defensibility unlocked. 1 theoretical reading remaining."
+        stage_desc = "Shield unlocked. 1 reading remaining."
     elif num_completed == 1:
         warrior_icon = "🪖"
         warrior_title = "Theoretical Scout"
-        stage_desc = "Helmet of Vision unlocked. Groundwork established."
+        stage_desc = "Helmet unlocked."
     else:
         warrior_icon = "🥋"
         warrior_title = "Academic Initiate"
-        stage_desc = "Base scaffolding. Complete readings or listen to audio to forge your armor."
+        stage_desc = "Base scaffolding."
 
-    badge_helmet = "gear-unlocked" if num_completed >= 1 else "gear-locked"
-    badge_shield = "gear-unlocked" if num_completed >= 2 else "gear-locked"
-    badge_sword = "gear-unlocked" if num_completed >= 3 else "gear-locked"
-    badge_crown = "gear-unlocked" if exercise_done else "gear-locked"
+    b_h = "gear-unlocked" if num_completed >= 1 else "gear-locked"
+    b_s = "gear-unlocked" if num_completed >= 2 else "gear-locked"
+    b_w = "gear-unlocked" if num_completed >= 3 else "gear-locked"
+    b_c = "gear-unlocked" if exercise_done else "gear-locked"
 
     st.markdown(f"""
     <div class="warrior-card">
         <div class="warrior-avatar">{warrior_icon}</div>
         <div style="flex-grow: 1;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-weight: 700;
+                <span style="font-weight: 700; font-size: 1rem; color: #0f172a;">Student Avatar: {st.session_state.profile['name']} — <span style="color: #047857;">{warrior_title}</span></span>
+                <span style="font-size: 0.8rem; font-weight: 600; color: #64748b;">Progress: {num_completed}/3 Readings</span>
+            </div>
+            <div style="font-size: 0.82rem; color: #64748b; margin-top: 2px;">{stage_desc}</div>
+            <div class="gear-badges">
+                <span class="gear-badge {b_h}">🪖 Reading A (Helmet)</span>
+                <span class="gear-badge {b_s}">🛡️ Reading B (Shield)</span>
+                <span class="gear-badge {b_w}">⚔️ Reading C (Blade)</span>
+                <span class="gear-badge {b_c}">👑 Final Defense (Crown)</span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_left, col_right = st.columns([1, 1], gap="large")
+
+    with col_left:
+        st.markdown("<div class='instruction-label'>Module Instructions</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='instruction-text'>{active_mod['instructions']}</div>", unsafe_allow_html=True)
+
+        st.markdown("<div class='instruction-label'>Curriculum Resources</div>", unsafe_allow_html=True)
+        for res in active_mod["resources"]:
+            is_done = res["id"] in st.session_state.completed_resources
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                st.markdown(f"**{'✅' if is_done else '📄'} {res['title']}**")
+            with c2:
+                if st.button("Focus 🎯", key=f"f_{res['id']}", use_container_width=True):
+                    st.session_state.active_reading = res
+                    st.rerun()
+
+        curr_r = st.session_state.active_reading
+        st.markdown(f"**Selected:** `{curr_r['title']}`")
+
+        t_read, t_audio = st.tabs(["📖 Summary", "🎙️ Neural Audio"])
+        with t_read:
+            st.info(curr_r["content"])
+            if st.button(f"Mark Read (+Equip Gear)", use_container_width=True):
+                st.session_state.completed_resources.add(curr_r["id"])
+                st.rerun()
+
+        with t_audio:
+            if st.button("Synthesize Neural Podcast", use_container_width=True):
+                prof = st.session_state.profile
+                p_text = f"Host A and Host B discuss {curr_r['content']} for executive {prof['name']} ({prof['industry']}). Alternating Host A: / Host B: lines. Approx 150 words."
+                script = generate_studio_text(p_text)
+                if script and elevenlabs_key:
+                    audio_b = synthesize_dual_voice_podcast(script, elevenlabs_key)
+                    st.session_state.active_audio = audio_b
+                    st.session_state.completed_resources.add(curr_r["id"])
+                    st.rerun()
+
+            if "active_audio" in st.session_state and st.session_state.active_audio:
+                render_podcast_player(st.session_state.active_audio, title=curr_r['title'])
+
+    with col_right:
+        st.markdown("<div class='instruction-label'>Module Defense Task</div>", unsafe_allow_html=True)
+        st.info(active_mod['exercise'])
+
+        st.markdown("<div class='instruction-label'>Socratic Sparring Partner</div>", unsafe_allow_html=True)
+        chat_box = st.container(height=340)
+        with chat_box:
+            for m in st.session_state.messages:
+                with st.chat_message(m["role"]):
+                    st.markdown(m["content"])
+
+        prompt = st.chat_input("Defend your thesis...")
+        if prompt:
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with chat_box:
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+                sys_inst = f"Socratic partner inside NEAM. Challenge assumptions for student {st.session_state.profile['name']}. Under 100 words."
+                with st.chat_message("assistant"):
+                    reply = st.write_stream(stream_socratic_response(prompt, sys_inst))
+                    st.session_state.messages.append({"role": "assistant", "content": reply})
+
+        if st.button("🏆 Submit Final Defense to Faculty", use_container_width=True):
+            if len(st.session_state.messages) < 2:
+                st.warning("Engage in Socratic sparring first.")
+            else:
+                st.session_state.exercise_submitted = True
+                st.balloons()
+                st.success("Submitted successfully!")
+                st.rerun()
