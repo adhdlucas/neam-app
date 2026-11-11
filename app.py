@@ -1,7 +1,6 @@
 import streamlit as st
 import datetime
 import os
-import glob
 import io
 import re
 import base64
@@ -10,7 +9,7 @@ from google import genai
 from google.genai import types
 
 # ---------------------------------------------------------
-# PAGE CONFIGURATION & THEME (WHITE / COBALT / EMERALD)
+# PAGE CONFIGURATION & THEME (CLEAN WHITE / COBALT / EMERALD)
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="NEAM | Executive Academic Portal",
@@ -32,7 +31,6 @@ CUSTOM_CSS = """
         color: #0f172a;
     }
 
-    /* Top Navigation Header */
     .portal-banner {
         background: #ffffff;
         border-bottom: 1px solid #e2e8f0;
@@ -55,7 +53,6 @@ CUSTOM_CSS = """
         font-weight: 500;
     }
 
-    /* Landing Role Cards */
     .role-card {
         background: #ffffff;
         border: 1px solid #e2e8f0;
@@ -86,7 +83,6 @@ CUSTOM_CSS = """
         min-height: 60px;
     }
 
-    /* Gamification Avatar Card */
     .warrior-card {
         background: #ffffff;
         border: 1px solid #e2e8f0;
@@ -171,7 +167,7 @@ CUSTOM_CSS = """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# GEMINI & ELEVENLABS CLIENT INITIALIZATION
+# GEMINI & ELEVENLABS INITIALIZATION & ROBUST FALLBACKS
 # ---------------------------------------------------------
 raw_keys = st.secrets.get("GEMINI_API_KEY", "")
 api_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
@@ -185,56 +181,62 @@ elevenlabs_key = st.secrets.get("ELEVENLABS_API_KEY", None)
 def get_gemini_client(key: str):
     return genai.Client(api_key=key)
 
-ACTIVE_MODEL = "gemini-3.8-flash"
+# Modelos estables con fallback automático ante congestión o error 5xx
+PRIMARY_MODELS = ["gemini-2.5-flash", "gemini-1.5-flash"]
 
+# Socratic sparring streaming optimizado para ultra-baja latencia
 def stream_socratic_response(prompt_text: str, system_instr: str):
     config = types.GenerateContentConfig(
         system_instruction=system_instr,
         temperature=0.6,
         max_output_tokens=220,
     )
-    for key in api_keys:
-        try:
-            client = get_gemini_client(key)
-            response_stream = client.models.generate_content_stream(
-                model=ACTIVE_MODEL,
-                contents=[prompt_text],
-                config=config
-            )
-            for chunk in response_stream:
-                if chunk.text:
-                    yield chunk.text
-            return
-        except Exception as e:
-            err = str(e).lower()
-            if "429" in err or "quota" in err or "resource_exhausted" in err:
+    last_err = None
+    for model_name in PRIMARY_MODELS:
+        for key in api_keys:
+            try:
+                client = get_gemini_client(key)
+                response_stream = client.models.generate_content_stream(
+                    model=model_name,
+                    contents=[prompt_text],
+                    config=config
+                )
+                for chunk in response_stream:
+                    if chunk.text:
+                        yield chunk.text
+                return
+            except Exception as e:
+                last_err = e
                 continue
-            raise e
+    yield f"⚠️ Latency spike on the model endpoint. Please retry. ({last_err})"
 
+# Generador de guiones y blueprints
 def generate_studio_text(prompt_text: str):
     config = types.GenerateContentConfig(temperature=0.7)
-    for key in api_keys:
-        try:
-            client = get_gemini_client(key)
-            resp = client.models.generate_content(
-                model=ACTIVE_MODEL,
-                contents=[prompt_text],
-                config=config
-            )
-            return resp.text
-        except Exception as e:
-            err = str(e).lower()
-            if "429" in err or "quota" in err or "resource_exhausted" in err:
+    last_err = None
+    for model_name in PRIMARY_MODELS:
+        for key in api_keys:
+            try:
+                client = get_gemini_client(key)
+                resp = client.models.generate_content(
+                    model=model_name,
+                    contents=[prompt_text],
+                    config=config
+                )
+                if resp.text:
+                    return resp.text
+            except Exception as e:
+                last_err = e
                 continue
-            raise e
-    raise RuntimeError("API services currently unavailable.")
+    raise RuntimeError(f"Service temporarily busy. Details: {last_err}")
 
+# Multi-speaker neural audio generator (ElevenLabs API v1.x+)
 def synthesize_dual_voice_podcast(script_text: str, api_token: str) -> bytes:
     from elevenlabs.client import ElevenLabs
     client_tts = ElevenLabs(api_key=api_token)
     
-    VOICE_HOST_A = "nPczCjzI2devNBz1zQrb"  # Brian
-    VOICE_HOST_B = "Xb7hH8MSUJpSbSDYk0k2"  # Alice
+    VOICE_HOST_A = "nPczCjzI2devNBz1zQrb"  # Brian (Analytical / Inquiring)
+    VOICE_HOST_B = "Xb7hH8MSUJpSbSDYk0k2"  # Alice (Dynamic / Strategic)
 
     lines = script_text.strip().split("\n")
     combined_audio = io.BytesIO()
@@ -277,6 +279,7 @@ def synthesize_dual_voice_podcast(script_text: str, api_token: str) -> bytes:
     combined_audio.seek(0)
     return combined_audio.read()
 
+# Custom Audio Player con controles de salto +-10s
 def render_podcast_player(audio_bytes: bytes, title: str = "Executive Briefing"):
     b64_audio = base64.b64encode(audio_bytes).decode()
     player_html = f"""
@@ -355,10 +358,10 @@ def render_podcast_player(audio_bytes: bytes, title: str = "Executive Briefing")
     components.html(player_html, height=140)
 
 # ---------------------------------------------------------
-# GLOBAL REPOSITORY & STATE INITIALIZATION
+# GLOBAL STATE & CURRICULUM ARCHITECTURE
 # ---------------------------------------------------------
 if "current_role" not in st.session_state:
-    st.session_state.current_role = None  # None = Landing Page
+    st.session_state.current_role = None
 
 if "profile" not in st.session_state:
     st.session_state.profile = {
@@ -420,9 +423,6 @@ if "exercise_submitted" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "student_submissions" not in st.session_state:
-    st.session_state.student_submissions = []
-
 if "faculty_grades" not in st.session_state:
     st.session_state.faculty_grades = {}
 
@@ -432,7 +432,7 @@ if "active_reading" not in st.session_state:
     st.session_state.active_reading = active_mod["resources"][0]
 
 # ---------------------------------------------------------
-# VIEW 1: LANDING PAGE (ROLE SELECTOR)
+# VIEW 1: LANDING PAGE (ROLE SELECTION)
 # ---------------------------------------------------------
 if st.session_state.current_role is None:
     st.markdown("""
@@ -543,7 +543,7 @@ elif st.session_state.current_role == "admin":
                 ]
             }
             st.session_state.active_reading = st.session_state.curriculum_modules["mod_1"]["resources"][0]
-            st.success("✅ Module updated successfully and propagated to Students and Evaluators!")
+            st.success("✅ Module updated successfully and propagated across the entire workspace!")
 
 # ---------------------------------------------------------
 # VIEW 3: TEACHER / FACULTY EVALUATOR ENVIRONMENT
