@@ -1,4 +1,13 @@
-Here is the complete, drop-in `app.py`. It has line 1 starting directly with Python code (no markdown text, no backticks) and includes the dual-endpoint fallback (`gemini-3.8-flash` with automatic fallback to `gemini-2.5-flash`), exponential backoff retries against 503 errors, ElevenLabs dual-voice synthesis, and full closed-loop alignment with your Steinbeis proposal.
+The introductory message from the chat response was copied directly into line 1 of the file again.
+
+When you copy code, **do not select the chat text above the code box**. In the chat interface, look at the top-right corner of the black code box and click the **"Copy"** button so it copies only raw code.
+
+Follow these steps to clean the file:
+
+1. Open `/mount/src/neam-app/app.py`.
+2. **Select all text** (`Ctrl+A` or `Cmd+A`) and hit **Delete** / **Backspace** so the file is completely empty.
+3. Paste the clean code below. Ensure line 1 begins with `import os` and has no words before it.
+4. Save the file.
 
 ```python
 import os
@@ -76,8 +85,8 @@ GEMINI_ENDPOINTS = [
 ]
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 
-VOICE_HOST_A = "21m00Tcm4TlvDq8ikWAM"  # Rachel (Framing Host)
-VOICE_HOST_B = "pNInz6obpgDQGcFmaJgB"  # Adam (First-Principles Host)
+VOICE_HOST_A = "21m00Tcm4TlvDq8ikWAM"
+VOICE_HOST_B = "pNInz6obpgDQGcFmaJgB"
 
 # ---------------------------------------------------------
 # Session State Initialization
@@ -249,7 +258,6 @@ STRICT ARCHITECTURAL SAFEGUARDS:
 # Multimodal Pipeline: Podcast Audio with Resilient Retry
 # ---------------------------------------------------------
 def generate_podcast_pipeline(material_text: str, gemini_key: str, eleven_key: str, progress_fn=None) -> Tuple[bytes, List[Dict]]:
-    """Transforms closed-loop material into an executive dual-voice dialogue with timeout and 503 fallback."""
     if progress_fn:
         progress_fn("Generating dialectic podcast script via Gemini...")
 
@@ -281,7 +289,6 @@ Material:
     script = None
     last_err = ""
 
-    # Try gemini-3.8-flash first, fall back to gemini-2.5-flash if 503 occurs
     for endpoint in GEMINI_ENDPOINTS:
         for attempt in range(3):
             try:
