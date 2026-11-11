@@ -1,54 +1,8 @@
-### Specification Review: Aligning Code with Your Strategic Proposal
+You accidentally copied the conversational markdown text along with the Python code block into your `/mount/src/neam-app/app.py` file.
 
-Reading your strategic proposal clarifies the purpose of NEAM. The previous prototype treated the features as disconnected utility tabs; your specification establishes an interconnected, **closed-loop pedagogical system**.
+Line 3 is trying to execute the conversational sentence (`Reading your strategic proposal clarifies...`) as raw Python code.
 
-The critical architectural requirements in your specification include:
-
-1. **Pre-Interview Cognitive Onboarding Diagnostic (Section 3):**
-* A dynamic 5-minute diagnostic assessing (1) Working Memory & Chunking, (2) Primary Sensory Channel, (3) Task Initiation Friction, and (4) Sparring Intensity/Tone.
-
-
-* The system must autonomously calibrate model temperature, prompt limits (under 150 words when chunking is flagged), and default learning formats based on this intake.
-
-
-
-
-2. **100% Closed-Loop Grounding (Section 4):**
-* The AI must strictly anchor to university syllabi, case studies, and uploaded literature. Zero open-web scraping, zero hallucinated outside frameworks.
-
-
-
-
-3. **Strict Anti-Ghostwriting Guardrails (Section 4, Engine B):**
-* The sparring engine must reject commands like *"write my essay"* or *"give me the answers"*.
-
-
-* It must push back with dialectic inquiry (e.g., *"Let's build your thesis together. What is your value curve differentiation?"*).
-
-
-
-
-4. **Chronological Proof-of-Work Learning Logs (Sections 4 & 5):**
-* Every turn in the Socratic sparring chamber must be cryptographically or chronologically recorded as an audit trail of intellectual reasoning.
-
-
-* Students export this log, and faculty (Dr. Mario Vaupel) evaluates authentic cognitive progression rather than a single static paper.
-
-
-
-
-5. **Multi-Modal Accessibility Pipeline (Engine A):**
-* Dual-Voice Podcasts (ElevenLabs) and Visual Slide Decks (Gemini 3.8 Flash) stem directly from verified syllabus readings to bypass ADHD executive reading paralysis.
-
-
-
-
-
----
-
-### Corrected, Unified `app.py`
-
-Below is the complete, production-ready `app.py` directly structured around your 4-page strategic specification.
+Wipe `app.py` clean and paste **only** the code below:
 
 ```python
 import os
@@ -133,17 +87,15 @@ VOICE_HOST_B = "pNInz6obpgDQGcFmaJgB"  # Adam (Grounded / First-Principles Host)
 if "current_role" not in st.session_state:
     st.session_state.current_role = None
 
-# Section 3: Diagnostic Profile
 if "student_profile" not in st.session_state:
     st.session_state.student_profile = {
         "onboarded": False,
         "working_memory_chunking": True,
         "primary_modality": "Audio-Visual (Podcast & Slides)",
         "task_initiation_scaffolding": True,
-        "sparring_intensity": "Contrarian Devil's Advocate",  # or Supportive Coach
+        "sparring_intensity": "Contrarian Devil's Advocate",
     }
 
-# Section 4: Closed-Loop Repository
 if "closed_loop_repo" not in st.session_state:
     st.session_state.closed_loop_repo = {
         "MOD-BOS": {
@@ -188,7 +140,6 @@ if "closed_loop_repo" not in st.session_state:
         }
     }
 
-# Engine B: Audit Trail & Sparring Session
 if "proof_of_work_log" not in st.session_state:
     st.session_state.proof_of_work_log = []
 
@@ -237,13 +188,10 @@ def call_socratic_engine(
     profile: dict,
     api_key: str
 ) -> str:
-    """Executes Socratic sparring strictly grounded in closed-loop materials with anti-ghostwriting guards."""
     if not api_key:
         return "⚠️ Missing Google AI Studio API Key. Please supply it in the sidebar."
 
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
-
-    # Calibrate tone and chunking parameters based on Diagnostic Profile
     intensity = profile.get("sparring_intensity", "Contrarian Devil's Advocate")
     max_tokens = 350 if profile.get("working_memory_chunking") else 1024
 
@@ -276,7 +224,6 @@ STRICT ARCHITECTURAL SAFEGUARDS:
         "systemInstruction": {"parts": [{"text": system_instruction}]},
     }
 
-    # Built-in backoff for 503 / 429
     for attempt in range(3):
         try:
             resp = requests.post(GEMINI_REST_ENDPOINT, headers=headers, json=payload, timeout=30)
@@ -299,7 +246,6 @@ STRICT ARCHITECTURAL SAFEGUARDS:
 # Multimodal Pipelines (Audio & Slides)
 # ---------------------------------------------------------
 def generate_podcast_pipeline(material_text: str, gemini_key: str, eleven_key: str) -> Tuple[bytes, List[Dict]]:
-    """Transforms closed-loop material into an executive dual-voice dialogue."""
     script_prompt = f"""
 Transform this verified Steinbeis course material into a 4-turn executive podcast dialogue between 'Host_A' and 'Host_B'.
 Host_A introduces the practical dilemma and challenges assumptions. Host_B provides the first-principles theoretical breakdown.
@@ -346,9 +292,6 @@ Material:
 # ROUTING CONTROLLER
 # ---------------------------------------------------------
 if st.session_state.current_role is None:
-    # -----------------------------------------------------
-    # LANDING PAGE: Strategic Portal Gateway
-    # -----------------------------------------------------
     st.markdown("<h1 style='text-align: center; margin-top: 25px;'>NEAM</h1>", unsafe_allow_html=True)
     st.markdown(
         "<p style='text-align: center; color: #94a3b8; font-size: 1.15rem;'>"
@@ -413,13 +356,9 @@ if st.session_state.current_role is None:
             st.rerun()
 
 elif st.session_state.current_role == "student":
-    # -----------------------------------------------------
-    # STUDENT WORKSPACE (Lucas Giraldo Mejia)
-    # -----------------------------------------------------
     st.title("Executive Workspace & Cognitive Scaffolding")
     st.caption("Candidate: Lucas Giraldo Mejia | Executive MBA in Creative Leadership")
 
-    # Step 1: Pre-Interview Diagnostic Modal / Expander if not calibrated
     with st.expander("🧠 Cognitive Onboarding Diagnostic (Personalization Architecture)", expanded=not st.session_state.student_profile["onboarded"]):
         st.write("Calibrate NEAM's autonomous system to your unique executive processing profile:")
         d_col1, d_col2 = st.columns(2)
@@ -447,11 +386,8 @@ elif st.session_state.current_role == "student":
         "📜 My Proof-of-Work Log"
     ])
 
-    # TAB 1: SOCRATIC SPARRING (ENGINE B)
     with tab_sparring:
         st.write(f"**Operating Mode:** {st.session_state.student_profile['sparring_intensity']} | Strictly Closed-Loop")
-
-        # Compile all closed-loop repository text for system prompt grounding
         active_repo_text = "\n\n".join([f"[{k}] {v['title']}: {v['content']}" for k, v in st.session_state.closed_loop_repo.items()])
 
         chat_container = st.container(height=480)
@@ -480,7 +416,6 @@ elif st.session_state.current_role == "student":
 
             st.session_state.sparring_chat.append({"role": "model", "content": reply})
 
-            # Append to Proof-of-Work Audit Trail
             st.session_state.proof_of_work_log.append({
                 "timestamp": timestamp,
                 "candidate": "Lucas Giraldo Mejia",
@@ -489,7 +424,6 @@ elif st.session_state.current_role == "student":
                 "verified": True
             })
 
-    # TAB 2: MULTIMODAL REPOSITORY (ENGINE A)
     with tab_materials:
         st.subheader("Closed-Loop Course Materials (ADHD Sensory Transformation)")
         
@@ -555,7 +489,6 @@ elif st.session_state.current_role == "student":
         elif mode == "📖 Raw Text":
             st.text_area("Approved Text Content", module_data["content"], height=250)
 
-    # TAB 3: PROOF-OF-WORK AUDIT TRAIL
     with tab_audit:
         st.subheader("Authentic Learning Log & Proof-of-Work Audit")
         st.write("Chronological verification of intellectual sparring turns. Eliminates unverified ghostwriting suspicion.")
@@ -573,9 +506,6 @@ elif st.session_state.current_role == "student":
             st.info("No sparring turns recorded in this session yet. Spar with the chamber to build your audit log.")
 
 elif st.session_state.current_role == "faculty":
-    # -----------------------------------------------------
-    # FACULTY EVALUATOR VIEW (Dr. Mario Vaupel)
-    # -----------------------------------------------------
     st.title("Faculty Proof-of-Work Audit Ledger")
     st.caption("Lead Evaluator: Dr. Mario Vaupel | Berlin School of Creative Leadership")
 
@@ -603,9 +533,6 @@ elif st.session_state.current_role == "faculty":
             st.success(f"Assessment entry for {cand} committed successfully.")
 
 elif st.session_state.current_role == "admin":
-    # -----------------------------------------------------
-    # CURRICULUM ADMIN VIEW (Closed-Loop Governance)
-    # -----------------------------------------------------
     st.title("Curriculum & Closed-Loop Repository Management")
     st.caption("Steinbeis University Berlin | Knowledge Integrity Architecture")
 
