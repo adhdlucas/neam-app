@@ -1,15 +1,3 @@
-The introductory message from the chat response was copied directly into line 1 of the file again.
-
-When you copy code, **do not select the chat text above the code box**. In the chat interface, look at the top-right corner of the black code box and click the **"Copy"** button so it copies only raw code.
-
-Follow these steps to clean the file:
-
-1. Open `/mount/src/neam-app/app.py`.
-2. **Select all text** (`Ctrl+A` or `Cmd+A`) and hit **Delete** / **Backspace** so the file is completely empty.
-3. Paste the clean code below. Ensure line 1 begins with `import os` and has no words before it.
-4. Save the file.
-
-```python
 import os
 import io
 import time
@@ -650,5 +638,3 @@ elif st.session_state.current_role == "admin":
                 }
                 st.success(f"Module {mod_code} successfully integrated into the closed-loop repository.")
                 st.rerun()
-
-```
