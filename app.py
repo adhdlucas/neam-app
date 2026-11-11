@@ -65,17 +65,17 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# Endpoints & Voice Setup (With 503 Cascade Fallbacks)
+# Endpoints & Voice Setup (Verified Active Models)
 # ---------------------------------------------------------
 GEMINI_ENDPOINTS = [
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent",
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-pro:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
 ]
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 
-VOICE_HOST_A = "21m00Tcm4TlvDq8ikWAM"  # Rachel (Framing Host)
-VOICE_HOST_B = "pNInz6obpgDQGcFmaJgB"  # Adam (First-Principles Host)
+VOICE_HOST_A = "21m00Tcm4TlvDq8ikWAM"  # Rachel
+VOICE_HOST_B = "pNInz6obpgDQGcFmaJgB"  # Adam
 
 # ---------------------------------------------------------
 # Session State Initialization
@@ -178,7 +178,7 @@ with st.sidebar:
             st.rerun()
 
 # ---------------------------------------------------------
-# Core Reasoning: Socratic Engine with Anti-Ghostwriting
+# Socratic Engine with Anti-Ghostwriting
 # ---------------------------------------------------------
 def call_socratic_engine(
     prompt: str,
@@ -246,7 +246,7 @@ STRICT ARCHITECTURAL SAFEGUARDS:
     return f"Service temporarily busy ({last_err}). Please retry in a moment."
 
 # ---------------------------------------------------------
-# Multimodal Pipeline: Podcast Audio with Robust Fallback
+# Multimodal Pipeline: Podcast Audio with Resilient Cascade
 # ---------------------------------------------------------
 def generate_podcast_pipeline(material_text: str, gemini_key: str, eleven_key: str, progress_fn=None) -> Tuple[bytes, List[Dict]]:
     if progress_fn:
@@ -280,7 +280,7 @@ Material:
     script = None
     last_err = ""
 
-    # Cascade through active models to survive 503 capacity surges
+    # Try gemini-3.8-flash, fall back to gemini-2.0-flash / 1.5-flash
     for endpoint in GEMINI_ENDPOINTS:
         model_name = endpoint.split("/models/")[1].split(":")[0]
 
