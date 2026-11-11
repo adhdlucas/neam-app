@@ -154,8 +154,7 @@ CUSTOM_CSS = """
         background-color: #1e40af;
         color: #ffffff;
         border-radius: 8px;
-        font-weight: 600;
-        border: none;
+"gemini-3.8-flash"        border: none;
     }
     .stButton>button:hover {
         background-color: #1d4ed8;
