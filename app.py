@@ -65,13 +65,17 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# Target Endpoint & ElevenLabs Configuration
+# Endpoints & Voice Setup (With 503 Cascade Fallbacks)
 # ---------------------------------------------------------
-GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
+GEMINI_ENDPOINTS = [
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-pro:generateContent",
+]
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 
-VOICE_HOST_A = "21m00Tcm4TlvDq8ikWAM"  # Rachel
-VOICE_HOST_B = "pNInz6obpgDQGcFmaJgB"  # Adam
+VOICE_HOST_A = "21m00Tcm4TlvDq8ikWAM"  # Rachel (Framing Host)
+VOICE_HOST_B = "pNInz6obpgDQGcFmaJgB"  # Adam (First-Principles Host)
 
 # ---------------------------------------------------------
 # Session State Initialization
@@ -174,7 +178,7 @@ with st.sidebar:
             st.rerun()
 
 # ---------------------------------------------------------
-# Socratic Engine (Chat Chamber)
+# Core Reasoning: Socratic Engine with Anti-Ghostwriting
 # ---------------------------------------------------------
 def call_socratic_engine(
     prompt: str,
@@ -186,10 +190,7 @@ def call_socratic_engine(
     if not api_key:
         return "⚠️ Missing Google AI Studio API Key. Please supply it in the sidebar."
 
-    headers = {
-        "Content-Type": "application/json",
-        "x-goog-api-key": api_key,
-    }
+    headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
     intensity = profile.get("sparring_intensity", "Contrarian Devil's Advocate")
     max_tokens = 350 if profile.get("working_memory_chunking") else 1024
 
@@ -197,12 +198,14 @@ def call_socratic_engine(
 You are NEAM (Neurodivergent Executive AI Module), an executive sparring partner for Steinbeis University / Berlin School of Creative Leadership.
 Candidate: Lucas Giraldo Mejia (Executive MBA in Creative Leadership).
 
-STRICT SAFEGUARDS:
-1. 100% CLOSED-LOOP GROUNDING: Draw exclusively from approved university repository materials.
-2. ANTI-GHOSTWRITING RULE: Categorically forbidden from drafting essays or solving assignments directly. Demand the student's own strategic reasoning.
-3. COGNITIVE CALIBRATION: Tone is {intensity}. Keep answers under 150-200 words.
-4. GROUNDING MATERIALS:
-{repo_context}
+STRICT ARCHITECTURAL SAFEGUARDS:
+1. 100% CLOSED-LOOP GROUNDING: Draw exclusively from the approved university repository provided below. Never scrape or reference unverified external web data.
+2. ANTI-GHOSTWRITING RULE: You are categorically forbidden from drafting essays, solving assignments directly, or ghostwriting final submissions. If the student asks you to "write my paper" or "give me the answer", refuse constructively: push back, ask dialectic questions, and demand their own strategic reasoning.
+3. COGNITIVE CALIBRATION:
+   - Tone: {intensity}.
+   - Chunking: Keep responses high-signal, punchy, and capped under 150-200 words to respect executive working memory.
+   - Grounding Source Material:
+   \"\"\"{repo_context}\"\"\"
 """
 
     contents = []
@@ -220,51 +223,51 @@ STRICT SAFEGUARDS:
         "systemInstruction": {"parts": [{"text": system_instruction}]},
     }
 
-    last_error = ""
-    for attempt in range(4):
-        try:
-            resp = requests.post(GEMINI_ENDPOINT, headers=headers, json=payload, timeout=45)
-            if resp.status_code == 200:
-                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-            elif resp.status_code in [503, 429, 500]:
-                wait_time = (2 ** attempt) * 1.5
-                time.sleep(wait_time)
-                last_error = f"{resp.status_code}: {resp.text}"
-                continue
-            else:
-                return f"API Error {resp.status_code}: {resp.text}"
-        except requests.exceptions.RequestException as e:
-            last_error = str(e)
-            time.sleep(2)
+    last_err = ""
+    for endpoint in GEMINI_ENDPOINTS:
+        model_name = endpoint.split("/models/")[1].split(":")[0]
+        for attempt in range(3):
+            try:
+                resp = requests.post(endpoint, headers=headers, json=payload, timeout=45)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data["candidates"][0]["content"]["parts"][0]["text"]
+                elif resp.status_code in [503, 429, 500]:
+                    time.sleep((2 ** attempt) * 1.5)
+                    last_err = f"{model_name} ({resp.status_code})"
+                    continue
+                else:
+                    last_err = f"{model_name} ({resp.status_code})"
+                    break
+            except requests.exceptions.RequestException as e:
+                last_err = f"{model_name}: {str(e)}"
+                time.sleep(1.5)
 
-    return f"Service temporarily busy ({last_error}). Please try your prompt again."
+    return f"Service temporarily busy ({last_err}). Please retry in a moment."
 
 # ---------------------------------------------------------
-# Multimodal Podcast Synthesis (Gemini 3.8 Flash + ElevenLabs)
+# Multimodal Pipeline: Podcast Audio with Robust Fallback
 # ---------------------------------------------------------
 def generate_podcast_pipeline(material_text: str, gemini_key: str, eleven_key: str, progress_fn=None) -> Tuple[bytes, List[Dict]]:
     if progress_fn:
-        progress_fn("Connecting to gemini-3.8-flash for podcast script...")
+        progress_fn("Generating dialectic podcast script...")
 
-    # Compact reading excerpt
-    processed_text = material_text[:3000] if len(material_text) > 3000 else material_text
+    processed_text = material_text[:2500] if len(material_text) > 2500 else material_text
 
     script_prompt = f"""
-Convert the following Steinbeis university course reading into a punchy, 4-turn executive podcast debrief between 'Host_A' and 'Host_B'.
-Host_A frames the strategic paradox or dilemma. Host_B breaks down the system solution.
-Keep each line under 35 words. Output ONLY valid JSON:
+Transform this verified Steinbeis course material into a concise 4-turn executive podcast dialogue between 'Host_A' and 'Host_B'.
+Host_A introduces the practical dilemma and challenges assumptions. Host_B provides the first-principles theoretical breakdown.
+Keep each turn under 35 words so audio generation is fast and punchy.
+Strictly return a JSON array matching:
 [
   {{"speaker": "Host_A", "text": "..."}},
   {{"speaker": "Host_B", "text": "..."}}
 ]
 
-Course Material:
+Material:
 \"\"\"{processed_text}\"\"\"
 """
-    headers = {
-        "Content-Type": "application/json",
-        "x-goog-api-key": gemini_key,
-    }
+    headers = {"Content-Type": "application/json", "x-goog-api-key": gemini_key}
     payload = {
         "contents": [{"role": "user", "parts": [{"text": script_prompt}]}],
         "generationConfig": {
@@ -277,33 +280,38 @@ Course Material:
     script = None
     last_err = ""
 
-    # Exponential retry loop against 503 backend capacity saturation
-    for attempt in range(4):
-        try:
-            resp = requests.post(GEMINI_ENDPOINT, headers=headers, json=payload, timeout=60)
-            if resp.status_code == 200:
-                raw_json = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-                script = json.loads(raw_json)
-                break
-            elif resp.status_code in (503, 429, 500):
-                wait = (2 ** attempt) * 2.0
-                if progress_fn:
-                    progress_fn(f"Backend busy (503). Retrying in {int(wait)}s (attempt {attempt + 1}/4)...")
-                time.sleep(wait)
-                last_err = f"{resp.status_code}: {resp.text}"
-                continue
-            else:
-                last_err = f"{resp.status_code}: {resp.text}"
-                break
-        except requests.exceptions.RequestException as e:
-            last_err = str(e)
-            time.sleep(2)
+    # Cascade through active models to survive 503 capacity surges
+    for endpoint in GEMINI_ENDPOINTS:
+        model_name = endpoint.split("/models/")[1].split(":")[0]
+
+        for attempt in range(3):
+            try:
+                resp = requests.post(endpoint, headers=headers, json=payload, timeout=60)
+                if resp.status_code == 200:
+                    raw_content = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    script = json.loads(raw_content)
+                    break
+                elif resp.status_code in (503, 429, 500):
+                    wait = (2 ** attempt) * 2.0
+                    if progress_fn:
+                        progress_fn(f"{model_name} busy (503). Retrying in {int(wait)}s...")
+                    time.sleep(wait)
+                    last_err = f"{model_name}: {resp.status_code} - {resp.text}"
+                    continue
+                else:
+                    last_err = f"{model_name}: {resp.status_code} - {resp.text}"
+                    break
+            except requests.exceptions.RequestException as e:
+                last_err = f"{model_name}: {str(e)}"
+                time.sleep(1.5)
+        if script:
+            break
 
     if not script:
-        raise RuntimeError(f"gemini-3.8-flash call failed: {last_err}")
+        raise RuntimeError(f"Script generation failed across endpoints. Last error: {last_err}")
 
     audio_buffer = io.BytesIO()
-    total = len(script)
+    total_turns = len(script)
 
     for i, turn in enumerate(script):
         speaker = turn.get("speaker", "Host_A")
@@ -311,26 +319,29 @@ Course Material:
         v_id = VOICE_HOST_A if speaker == "Host_A" else VOICE_HOST_B
 
         if progress_fn:
-            progress_fn(f"Synthesizing voice turn {i + 1}/{total} ({speaker})...")
+            progress_fn(f"Synthesizing voice turn {i + 1}/{total_turns} ({speaker})...")
 
-        tts_resp = requests.post(
-            f"{ELEVENLABS_TTS_URL}/{v_id}",
-            headers={
-                "Accept": "audio/mpeg",
-                "Content-Type": "application/json",
-                "xi-api-key": eleven_key,
-            },
-            json={
-                "text": text,
-                "model_id": "eleven_turbo_v2_5",
-                "voice_settings": {"stability": 0.45, "similarity_boost": 0.75},
-            },
-            timeout=60,
-        )
-        if tts_resp.status_code == 200:
-            audio_buffer.write(tts_resp.content)
-        else:
-            raise RuntimeError(f"ElevenLabs error ({tts_resp.status_code}): {tts_resp.text}")
+        try:
+            tts_resp = requests.post(
+                f"{ELEVENLABS_TTS_URL}/{v_id}",
+                headers={
+                    "Accept": "audio/mpeg",
+                    "Content-Type": "application/json",
+                    "xi-api-key": eleven_key,
+                },
+                json={
+                    "text": text,
+                    "model_id": "eleven_turbo_v2_5",
+                    "voice_settings": {"stability": 0.45, "similarity_boost": 0.75},
+                },
+                timeout=60,
+            )
+            if tts_resp.status_code == 200:
+                audio_buffer.write(tts_resp.content)
+            else:
+                raise RuntimeError(f"ElevenLabs error ({tts_resp.status_code}): {tts_resp.text}")
+        except requests.exceptions.Timeout:
+            raise RuntimeError(f"ElevenLabs timed out synthesizing turn {i + 1}.")
 
     audio_buffer.seek(0)
     return audio_buffer.read(), script
