@@ -179,6 +179,17 @@ if not api_keys:
 elevenlabs_key = st.secrets.get("ELEVENLABS_API_KEY", None)
 
 def get_gemini_client(key: str):
+    """
+    Inicializa el cliente de Google GenAI soportando tanto claves públicas estándar (AIzaSy...)
+    como credenciales modernas de Google AI Studio (AQ...).
+    """
+    if key.startswith("AQ."):
+        return genai.Client(
+            api_key=key,
+            http_options=types.HttpOptions(
+                headers={"Authorization": f"Bearer {key}"}
+            )
+        )
     return genai.Client(api_key=key)
 
 # Modelos oficiales válidos de Google GenAI SDK con fallback
