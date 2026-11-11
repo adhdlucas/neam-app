@@ -2,6 +2,8 @@ import streamlit as st
 import datetime
 import os
 import glob
+import io
+import re
 from google import genai
 from google.genai import types
 
@@ -61,7 +63,7 @@ CUSTOM_CSS = """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# GEMINI CLIENT INITIALIZATION
+# GEMINI & ELEVENLABS CLIENT INITIALIZATION
 # ---------------------------------------------------------
 raw_keys = st.secrets.get("GEMINI_API_KEY", "")
 api_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
@@ -70,12 +72,14 @@ if not api_keys:
     st.error("⚠️ GEMINI_API_KEY missing. Please configure it in your Streamlit Cloud Secrets.")
     st.stop()
 
-def get_client(key: str):
+elevenlabs_key = st.secrets.get("ELEVENLABS_API_KEY", None)
+
+def get_gemini_client(key: str):
     return genai.Client(api_key=key)
 
 ACTIVE_MODEL = "gemini-3.8-flash"
 
-# Single-attempt streaming function (conserves calls & shows text immediately)
+# Socratic sparring streaming generator
 def stream_socratic_response(prompt_text: str, system_instr: str):
     config = types.GenerateContentConfig(
         system_instruction=system_instr,
@@ -83,7 +87,7 @@ def stream_socratic_response(prompt_text: str, system_instr: str):
     )
     for key in api_keys:
         try:
-            client = get_client(key)
+            client = get_gemini_client(key)
             response_stream = client.models.generate_content_stream(
                 model=ACTIVE_MODEL,
                 contents=[prompt_text],
@@ -99,12 +103,12 @@ def stream_socratic_response(prompt_text: str, system_instr: str):
                 continue
             raise e
 
-# Single-attempt text generation for studio
+# Studio script & deck generator
 def generate_studio_text(prompt_text: str):
     config = types.GenerateContentConfig(temperature=0.7)
     for key in api_keys:
         try:
-            client = get_client(key)
+            client = get_gemini_client(key)
             resp = client.models.generate_content(
                 model=ACTIVE_MODEL,
                 contents=[prompt_text],
@@ -116,7 +120,51 @@ def generate_studio_text(prompt_text: str):
             if "429" in err or "quota" in err or "resource_exhausted" in err:
                 continue
             raise e
-    raise RuntimeError("All configured API keys have exceeded their current quota.")
+    raise RuntimeError("Model services currently unavailable. Check API keys and quotas.")
+
+# Multi-speaker dual-voice neural audio generator (ElevenLabs)
+def synthesize_dual_voice_podcast(script_text: str, api_token: str) -> bytes:
+    from elevenlabs.client import ElevenLabs
+    client_tts = ElevenLabs(api_key=api_token)
+    
+    # Pre-configured natural voices:
+    # Host A: "Brian" (Deep, articulate, academic tone)
+    # Host B: "Alice" (Engaging, confident executive tone)
+    VOICE_HOST_A = "nPczCjzI2devNBz1zQrb"  # Brian
+    VOICE_HOST_B = "Xb7hH8MSUJpSbSDYk0k2"  # Alice
+
+    lines = script_text.strip().split("\n")
+    combined_audio = io.BytesIO()
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        speaker = None
+        utterance = ""
+        
+        if line.startswith("**Host A:**") or line.startswith("Host A:"):
+            speaker = VOICE_HOST_A
+            utterance = re.sub(r"^\*{0,2}Host A:\*{0,2}\s*", "", line)
+        elif line.startswith("**Host B:**") or line.startswith("Host B:"):
+            speaker = VOICE_HOST_B
+            utterance = re.sub(r"^\*{0,2}Host B:\*{0,2}\s*", "", line)
+        else:
+            utterance = line
+            speaker = VOICE_HOST_A
+
+        if utterance.strip():
+            audio_stream = client_tts.generate(
+                text=utterance.strip(),
+                voice=speaker,
+                model="eleven_turbo_v2_5"
+            )
+            for chunk in audio_stream:
+                combined_audio.write(chunk)
+
+    combined_audio.seek(0)
+    return combined_audio.read()
 
 # ---------------------------------------------------------
 # CURRICULUM DIRECTORY & INGESTION
@@ -139,7 +187,6 @@ def extract_file_content(filepath: str) -> str:
         with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
             return f.read()
 
-# Fallback starter file if directory is empty
 sample_path = os.path.join(CURRICULUM_DIR, "Steinbeis_Core_Creative_Leadership.txt")
 if not os.path.exists(sample_path) and len(os.listdir(CURRICULUM_DIR)) == 0:
     with open(sample_path, "w", encoding="utf-8") as f:
@@ -331,7 +378,7 @@ with tab_library:
             st.text(st.session_state.selected_curriculum_text[:1200] + "...")
 
 # ---------------------------------------------------------
-# TAB 2: SOCRATIC SPARRING ROOM (STREAMING FAST, ZERO ERRORS)
+# TAB 2: SOCRATIC SPARRING ROOM (STREAMING FAST)
 # ---------------------------------------------------------
 with tab_sparring:
     prof = st.session_state.profile
@@ -386,7 +433,7 @@ RULES:
                     st.rerun()
 
 # ---------------------------------------------------------
-# TAB 3: MULTIMODAL EXECUTIVE STUDIO (NOTEBOOKLM SCRIPT + ZERO-COST AUDIO)
+# TAB 3: MULTIMODAL EXECUTIVE STUDIO (DUAL-VOICE NEURAL AUDIO)
 # ---------------------------------------------------------
 with tab_studio:
     prof = st.session_state.profile
@@ -396,13 +443,13 @@ with tab_studio:
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.markdown("#### 🎧 Executive Deep-Dive Podcast")
+        st.markdown("#### 🎧 Dual-Voice Neural Audio Podcast")
         focus_angle = st.text_input(
             "Discussion Angle (Optional)",
-            placeholder="e.g., Focus on eliminate-reduce trade-offs and value curves"
+            placeholder="e.g., Focus on value innovation and eliminating traditional overhead"
         )
         
-        generate_audio_btn = st.button("🎙️ Generate Deep-Dive Executive Podcast", use_container_width=True)
+        generate_audio_btn = st.button("🎙️ Synthesize Executive Audio Podcast", use_container_width=True)
 
         if generate_audio_btn:
             material = st.session_state.selected_curriculum_text[:8000]
@@ -412,8 +459,8 @@ with tab_studio:
                 podcast_script_prompt = f"""
 You are the Executive Audio Synthesizer inside NEAM.
 Generate an executive briefing podcast script between two hosts:
-- Host A (Analytical Socratic Inquirer)
-- Host B (Practical Strategist)
+- Host A: Analytical, thoughtful Socratic inquirer.
+- Host B: Energetic, pragmatic executive strategist.
 
 Topic / Angle: {focus_angle if focus_angle else 'Core theoretical frameworks'}
 
@@ -427,41 +474,47 @@ TARGET EXECUTIVE:
 - Industry: {prof['industry']}
 - Metaphors: {prof['passions']}
 
-REQUIREMENTS:
+SCRIPT REQUIREMENTS:
 1. Ground arguments 100% in the source material.
 2. Address {prof['name']} directly by name 2 to 3 times to refocus attention.
 3. Translate theoretical frameworks using concrete analogies from {prof['passions']}.
-4. Length: 400-500 words. Format cleanly as Host A: / Host B: lines.
+4. Length: concise dialogue (approx. 250-350 words, 5-6 total turns between Host A and Host B).
+Format strictly with alternating lines starting with 'Host A:' or 'Host B:'.
 """
-                with st.spinner("Synthesizing grounded executive podcast script..."):
+                with st.spinner("1/2: Synthesizing grounded script with attention anchors..."):
                     try:
                         script_text = generate_studio_text(prompt_text=podcast_script_prompt)
                         st.session_state.generated_script = script_text
-                        log_audit_entry("PODCAST_SYNTHESIZED", "NEAM Studio", f"Grounding: {st.session_state.selected_doc_name}")
                     except Exception as e:
-                        st.error(f"Generation notice: {e}")
+                        st.error(f"Script synthesis error: {e}")
+                        script_text = None
+
+                if script_text:
+                    if not elevenlabs_key:
+                        st.info("💡 To generate broadcast-quality dual voices, add `ELEVENLABS_API_KEY` to Streamlit Secrets. Script is ready below:")
+                    else:
+                        with st.spinner("2/2: Rendering dual neural voices (Host A + Host B)..."):
+                            try:
+                                audio_bytes = synthesize_dual_voice_podcast(script_text, elevenlabs_key)
+                                st.session_state.neural_audio = audio_bytes
+                                log_audit_entry("NEURAL_PODCAST_SYNTHESIZED", "NEAM Studio", f"Document: {st.session_state.selected_doc_name}")
+                            except Exception as e:
+                                st.error(f"Neural audio rendering notice: {e}")
+
+        # Render Neural Audio Player
+        if "neural_audio" in st.session_state and st.session_state.neural_audio:
+            st.success("🎧 Broadcast-Quality Dual-Voice Podcast Ready!")
+            st.audio(st.session_state.neural_audio, format="audio/mp3")
+            st.download_button(
+                "📥 Download Episode (.mp3)",
+                data=st.session_state.neural_audio,
+                file_name=f"NEAM_Podcast_{prof['name']}.mp3",
+                mime="audio/mp3"
+            )
 
         if "generated_script" in st.session_state and st.session_state.generated_script:
-            st.success("✅ Deep-Dive Podcast Script Ready!")
-            
-            # Zero-Quota Browser Audio Player (Plays aloud right in the app)
-            escaped_script = st.session_state.generated_script.replace("`", "'").replace("\n", " ")
-            tts_html = f"""
-            <div style="background-color: #1e293b; padding: 15px; border-radius: 8px; border: 1px solid #334155; margin-bottom: 12px;">
-                <p style="color: #10b981; font-weight: bold; margin-bottom: 8px;">🔊 Play Spoken Dialogue (Zero API Cost):</p>
-                <button onclick="window.speechSynthesis.cancel(); let msg = new SpeechSynthesisUtterance(`{escaped_script[:1500]}`); msg.rate = 1.0; window.speechSynthesis.speak(msg);" style="background-color: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 8px;">▶️ Play Episode</button>
-                <button onclick="window.speechSynthesis.cancel();" style="background-color: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold;">⏹️ Stop</button>
-            </div>
-            """
-            st.components.v1.html(tts_html, height=90)
-
-            st.text_area("Full Dialogue Script", st.session_state.generated_script, height=300)
-            st.download_button(
-                "📥 Download Episode Script (.txt)",
-                data=st.session_state.generated_script,
-                file_name=f"NEAM_Podcast_{prof['name']}.txt",
-                mime="text/plain"
-            )
+            with st.expander("View Full Dialogue Script"):
+                st.text_area("Script", st.session_state.generated_script, height=300)
 
     with col2:
         st.markdown("#### 📊 Visual Strategy Blueprint")
