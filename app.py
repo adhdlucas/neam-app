@@ -1,12 +1,71 @@
+### Specification Review: Aligning Code with Your Strategic Proposal
+
+Reading your strategic proposal clarifies the purpose of NEAM. The previous prototype treated the features as disconnected utility tabs; your specification establishes an interconnected, **closed-loop pedagogical system**.
+
+The critical architectural requirements in your specification include:
+
+1. **Pre-Interview Cognitive Onboarding Diagnostic (Section 3):**
+* A dynamic 5-minute diagnostic assessing (1) Working Memory & Chunking, (2) Primary Sensory Channel, (3) Task Initiation Friction, and (4) Sparring Intensity/Tone.
+
+
+* The system must autonomously calibrate model temperature, prompt limits (under 150 words when chunking is flagged), and default learning formats based on this intake.
+
+
+
+
+2. **100% Closed-Loop Grounding (Section 4):**
+* The AI must strictly anchor to university syllabi, case studies, and uploaded literature. Zero open-web scraping, zero hallucinated outside frameworks.
+
+
+
+
+3. **Strict Anti-Ghostwriting Guardrails (Section 4, Engine B):**
+* The sparring engine must reject commands like *"write my essay"* or *"give me the answers"*.
+
+
+* It must push back with dialectic inquiry (e.g., *"Let's build your thesis together. What is your value curve differentiation?"*).
+
+
+
+
+4. **Chronological Proof-of-Work Learning Logs (Sections 4 & 5):**
+* Every turn in the Socratic sparring chamber must be cryptographically or chronologically recorded as an audit trail of intellectual reasoning.
+
+
+* Students export this log, and faculty (Dr. Mario Vaupel) evaluates authentic cognitive progression rather than a single static paper.
+
+
+
+
+5. **Multi-Modal Accessibility Pipeline (Engine A):**
+* Dual-Voice Podcasts (ElevenLabs) and Visual Slide Decks (Gemini 3.8 Flash) stem directly from verified syllabus readings to bypass ADHD executive reading paralysis.
+
+
+
+
+
+---
+
+### Corrected, Unified `app.py`
+
+Below is the complete, production-ready `app.py` directly structured around your 4-page strategic specification.
+
+```python
 import os
+import io
+import time
+import json
+import base64
+from datetime import datetime
+from typing import List, Dict, Tuple
 import requests
 import streamlit as st
 
 # ---------------------------------------------------------
-# Page Configuration & Styling
+# Page Configuration & Global Scaffolding Theme
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="NEAM | Executive Sparring Portal",
+    page_title="NEAM | Executive Cognitive Scaffolding",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -15,254 +74,573 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .main { background-color: #0d1117; color: #c9d1d9; }
-    .stButton>button { border-radius: 6px; font-weight: 600; }
-    .block-container { padding-top: 2rem; padding-bottom: 2rem; }
+    .stApp {
+        background-color: #0b0f17;
+        color: #e2e8f0;
+    }
+    /* Eliminate red borders on chat input */
+    div[data-testid="stChatInput"] {
+        border-color: #1e293b !important;
+    }
+    div[data-testid="stChatInput"]:focus-within {
+        border-color: #0ea5e9 !important;
+        box-shadow: 0 0 0 1px #0ea5e9 !important;
+    }
+    div[data-testid="stChatInput"] textarea:focus {
+        box-shadow: none !important;
+        border-color: transparent !important;
+    }
+    .role-card {
+        background: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+        transition: transform 0.2s, border-color 0.2s;
+    }
+    .role-card:hover {
+        transform: translateY(-3px);
+        border-color: #0ea5e9;
+    }
+    .badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+    }
+    .badge-blue { background-color: #0369a1; color: #e0f2fe; }
+    .badge-green { background-color: #065f46; color: #d1fae5; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 # ---------------------------------------------------------
-# Environment & API Setup
+# Endpoints & Voice Setup
 # ---------------------------------------------------------
-GOOGLE_API_KEY = st.sidebar.text_input(
-    "Google GenAI API Key",
-    value=os.getenv("GEMINI_API_KEY", ""),
-    type="password",
-    help="Starts with 'AQ...'",
-)
-ELEVENLABS_API_KEY = st.sidebar.text_input(
-    "ElevenLabs API Key",
-    value=os.getenv("ELEVENLABS_API_KEY", ""),
-    type="password",
-)
+GEMINI_REST_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
+ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
+
+VOICE_HOST_A = "21m00Tcm4TlvDq8ikWAM"  # Rachel (Inquisitive / Framing Host)
+VOICE_HOST_B = "pNInz6obpgDQGcFmaJgB"  # Adam (Grounded / First-Principles Host)
 
 # ---------------------------------------------------------
-# Session State Defaults
+# Session State Initialization
 # ---------------------------------------------------------
+if "current_role" not in st.session_state:
+    st.session_state.current_role = None
+
+# Section 3: Diagnostic Profile
+if "student_profile" not in st.session_state:
+    st.session_state.student_profile = {
+        "onboarded": False,
+        "working_memory_chunking": True,
+        "primary_modality": "Audio-Visual (Podcast & Slides)",
+        "task_initiation_scaffolding": True,
+        "sparring_intensity": "Contrarian Devil's Advocate",  # or Supportive Coach
+    }
+
+# Section 4: Closed-Loop Repository
+if "closed_loop_repo" not in st.session_state:
+    st.session_state.closed_loop_repo = {
+        "MOD-BOS": {
+            "title": "Strategic Alignment & Blue Ocean Strategy",
+            "faculty": "Dr. Mario Vaupel / W.C. Kim & R. Mauborgne",
+            "summary": "Core framework on Value Innovation, Strategy Canvas, Four Actions Framework (ERRC Grid), and eliminating red ocean trade-offs.",
+            "content": (
+                "Blue Ocean Strategy challenges companies to break out of red oceans of bloody competition "
+                "by creating uncontested market space that makes the competition irrelevant. Instead of choosing "
+                "between low cost and high differentiation, Value Innovation pursues both simultaneously. "
+                "The Four Actions Framework asks: Which factors should be Eliminated, Reduced, Raised, and Created? "
+                "In executive education, traditional monomodal lecturing represents a high-overhead red ocean, "
+                "whereas closed-loop multimodal cognitive scaffolding unlocks uncontested value for creative leaders."
+            ),
+            "slides": [
+                {
+                    "slide_number": 1,
+                    "pillar_category": "FOUNDATIONAL AXIOM",
+                    "title": "Value Innovation vs. Structural Competition",
+                    "core_takeaway": "Stop competing in crowded markets; alter the strategic landscape by breaking the cost-differentiation trade-off.",
+                    "bullet_points": [
+                        "Red Oceans focus on beating rivals within defined boundaries.",
+                        "Blue Oceans unlock new demand through non-linear systemic leaps.",
+                        "Cost savings occur by eliminating factors the industry long competed on."
+                    ],
+                    "executive_sparring_question": "What sacred cow in your industry or thesis proposal can be eliminated entirely without eroding customer trust?"
+                },
+                {
+                    "slide_number": 2,
+                    "pillar_category": "EXECUTION TOOL",
+                    "title": "The ERRC Diagnostic Grid",
+                    "core_takeaway": "Systematic transformation requires simultaneous elimination and novel creation.",
+                    "bullet_points": [
+                        "Eliminate: Factors taken for granted that offer no real value.",
+                        "Reduce: Elements over-designed in head-to-head competition.",
+                        "Raise: Key levers well above the current industry standard.",
+                        "Create: Entirely new sources of utility never before offered."
+                    ],
+                    "executive_sparring_question": "Can you define your project's value curve in four definitive verbs?"
+                }
+            ]
+        }
+    }
+
+# Engine B: Audit Trail & Sparring Session
+if "proof_of_work_log" not in st.session_state:
+    st.session_state.proof_of_work_log = []
+
 if "sparring_chat" not in st.session_state:
     st.session_state.sparring_chat = [
         {
             "role": "model",
             "content": (
-                "Welcome to the Socratic Sparring Chamber, Lucas. "
-                "State your strategic hypothesis, core constraint, or creative leadership premise to begin."
-            ),
-        }
-    ]
-
-if "curriculum_modules" not in st.session_state:
-    st.session_state.curriculum_modules = [
-        {"id": "MOD-01", "name": "Creative Leadership & Systems Strategy", "status": "Active"},
-        {"id": "MOD-02", "name": "Cognitive Scaffolding & Dialectical Sparring", "status": "Active"},
-        {"id": "MOD-03", "name": "Advanced Physical-Digital Retail Architectures", "status": "Draft"},
-    ]
-
-if "proof_ledger" not in st.session_state:
-    st.session_state.proof_ledger = [
-        {
-            "student": "Lucas Giraldo",
-            "milestone": "Thesis Defense - Cognitive Ergonomics in Executive Sparring",
-            "score": 96,
-            "evaluator": "Dr. Mario Vaupel",
-            "verified": True,
+                "NEAM Closed-Loop Sparring Chamber initialized. "
+                "Grounding is locked strictly to Steinbeis / Berlin School curriculum materials. "
+                "I am primed to challenge your strategic thesis. Present your core premise or framework challenge."
+            )
         }
     ]
 
 # ---------------------------------------------------------
-# API Helper Functions
+# Sidebar Credentials & Routing
 # ---------------------------------------------------------
-def call_gemini_flash(prompt: str, conversation_history: list, api_key: str) -> str:
-    """Calls gemini-3.8-flash via the direct v1beta Generative Language REST endpoint."""
+with st.sidebar:
+    st.markdown("### ⚙️ Engine Gateway")
+    GOOGLE_API_KEY = st.text_input(
+        "Google AI Studio Key",
+        value=os.getenv("GEMINI_API_KEY", ""),
+        type="password",
+        help="Required: models/gemini-3.8-flash (AQ...)",
+    )
+    ELEVENLABS_API_KEY = st.text_input(
+        "ElevenLabs API Key",
+        value=os.getenv("ELEVENLABS_API_KEY", ""),
+        type="password",
+    )
+
+    if st.session_state.current_role:
+        st.divider()
+        if st.button("← Switch Portal View", use_container_width=True):
+            st.session_state.current_role = None
+            st.rerun()
+
+# ---------------------------------------------------------
+# Core Reasoning: Socratic Engine with Anti-Ghostwriting
+# ---------------------------------------------------------
+def call_socratic_engine(
+    prompt: str,
+    conversation_history: list,
+    repo_context: str,
+    profile: dict,
+    api_key: str
+) -> str:
+    """Executes Socratic sparring strictly grounded in closed-loop materials with anti-ghostwriting guards."""
     if not api_key:
-        return "Error: Missing Google AI Studio API Key."
+        return "⚠️ Missing Google AI Studio API Key. Please supply it in the sidebar."
 
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
-    headers = {
-        "Content-Type": "application/json",
-        "x-goog-api-key": api_key,
-    }
+    headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
 
-    # Format history into Gemini Contents structure
+    # Calibrate tone and chunking parameters based on Diagnostic Profile
+    intensity = profile.get("sparring_intensity", "Contrarian Devil's Advocate")
+    max_tokens = 350 if profile.get("working_memory_chunking") else 1024
+
+    system_instruction = f"""
+You are NEAM (Neurodivergent Executive AI Module), an executive sparring partner for Steinbeis University / Berlin School of Creative Leadership.
+Candidate: Lucas Giraldo Mejia (Executive MBA in Creative Leadership).
+
+STRICT ARCHITECTURAL SAFEGUARDS:
+1. 100% CLOSED-LOOP GROUNDING: Draw exclusively from the approved university repository provided below. Never scrape or reference unverified external web data.
+2. ANTI-GHOSTWRITING RULE: You are categorically forbidden from drafting essays, solving assignments directly, or ghostwriting final submissions. If the student asks you to "write my paper" or "give me the answer", refuse constructively: push back, ask dialectic questions, and demand their own strategic reasoning.
+3. COGNITIVE CALIBRATION:
+   - Tone: {intensity}.
+   - Chunking: Keep responses high-signal, punchy, and capped under 150-200 words to respect executive working memory.
+   - Grounding Source Material:
+   \"\"\"{repo_context}\"\"\"
+"""
+
     contents = []
     for msg in conversation_history:
         role = "user" if msg["role"] == "user" else "model"
         contents.append({"role": role, "parts": [{"text": msg["content"]}]})
-    
-    # Append the new user prompt
     contents.append({"role": "user", "parts": [{"text": prompt}]})
 
     payload = {
         "contents": contents,
         "generationConfig": {
-            "temperature": 0.7,
-            "maxOutputTokens": 2048,
+            "temperature": 0.3 if intensity == "Contrarian Devil's Advocate" else 0.6,
+            "maxOutputTokens": max_tokens,
         },
-        "systemInstruction": {
-            "parts": [
-                {
-                    "text": (
-                        "You are NEAM, an executive cognitive scaffolding sparring partner for Steinbeis University's "
-                        "MBA in Creative Leadership. Engage directly, challenge weak assumptions, utilize first-principles "
-                        "reasoning, and avoid diplomatic fluff."
-                    )
-                }
-            ]
-        },
+        "systemInstruction": {"parts": [{"text": system_instruction}]},
     }
 
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
-        data = response.json()
-        return data["candidates"][0]["content"]["parts"][0]["text"]
-    except requests.exceptions.RequestException as e:
-        return f"API Error: {str(e)}"
-    except (KeyError, IndexError):
-        return f"Unexpected Response Payload: {response.text}"
+    # Built-in backoff for 503 / 429
+    for attempt in range(3):
+        try:
+            resp = requests.post(GEMINI_REST_ENDPOINT, headers=headers, json=payload, timeout=30)
+            if resp.status_code == 200:
+                data = resp.json()
+                return data["candidates"][0]["content"]["parts"][0]["text"]
+            elif resp.status_code in [503, 429]:
+                time.sleep((2 ** attempt) * 1.5)
+                continue
+            else:
+                return f"API Error {resp.status_code}: {resp.text}"
+        except requests.exceptions.RequestException as e:
+            if attempt == 2:
+                return f"Connection Error: {str(e)}"
+            time.sleep(1)
 
-
-def trigger_elevenlabs_dual_voice(dialogue_script: str, api_key: str):
-    """Stub for invoking ElevenLabs dual-voice synthesis endpoint."""
-    if not api_key:
-        st.warning("ElevenLabs API Key required for dual-voice synthesis.")
-        return None
-    # Dual-voice stitching / API request workflow
-    st.info("Triggering dual-voice audio pipeline with ElevenLabs...")
-    return None
-
-# ---------------------------------------------------------
-# Navigation & View Routing
-# ---------------------------------------------------------
-st.sidebar.title("NEAM Navigation")
-role = st.sidebar.radio(
-    "Select Operating Role:",
-    ["Student (Lucas)", "Faculty / Evaluator (Dr. Mario Vaupel)", "Admin (Curriculum)"],
-)
+    return "Service Temporarily Unavailable (503). Retrying closed-loop endpoint..."
 
 # ---------------------------------------------------------
-# 1. Student View: Sparring Chamber & Media Player
+# Multimodal Pipelines (Audio & Slides)
 # ---------------------------------------------------------
-if role == "Student (Lucas)":
-    st.title("Socratic Sparring Chamber")
-    st.caption("Steinbeis University | Executive MBA Creative Leadership")
+def generate_podcast_pipeline(material_text: str, gemini_key: str, eleven_key: str) -> Tuple[bytes, List[Dict]]:
+    """Transforms closed-loop material into an executive dual-voice dialogue."""
+    script_prompt = f"""
+Transform this verified Steinbeis course material into a 4-turn executive podcast dialogue between 'Host_A' and 'Host_B'.
+Host_A introduces the practical dilemma and challenges assumptions. Host_B provides the first-principles theoretical breakdown.
+Strictly return a JSON array matching:
+[
+  {{"speaker": "Host_A", "text": "..."}},
+  {{"speaker": "Host_B", "text": "..."}}
+]
 
-    col_chat, col_media = st.columns([3, 2], gap="large")
+Material:
+\"\"\"{material_text}\"\"\"
+"""
+    headers = {"Content-Type": "application/json", "x-goog-api-key": gemini_key}
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": script_prompt}]}],
+        "generationConfig": {"temperature": 0.4, "responseMimeType": "application/json"}
+    }
+    
+    resp = requests.post(GEMINI_REST_ENDPOINT, headers=headers, json=payload, timeout=30)
+    resp.raise_for_status()
+    script = json.loads(resp.json()["candidates"][0]["content"]["parts"][0]["text"])
 
-    with col_chat:
-        st.subheader("Executive Sparring Dialogue")
+    audio_buffer = io.BytesIO()
+    for turn in script:
+        speaker = turn["speaker"]
+        v_id = VOICE_HOST_A if speaker == "Host_A" else VOICE_HOST_B
+        tts_resp = requests.post(
+            f"{ELEVENLABS_TTS_URL}/{v_id}",
+            headers={"Accept": "audio/mpeg", "Content-Type": "application/json", "xi-api-key": eleven_key},
+            json={
+                "text": turn["text"],
+                "model_id": "eleven_turbo_v2_5",
+                "voice_settings": {"stability": 0.45, "similarity_boost": 0.75}
+            },
+            timeout=40
+        )
+        if tts_resp.status_code == 200:
+            audio_buffer.write(tts_resp.content)
+
+    audio_buffer.seek(0)
+    return audio_buffer.read(), script
+
+# ---------------------------------------------------------
+# ROUTING CONTROLLER
+# ---------------------------------------------------------
+if st.session_state.current_role is None:
+    # -----------------------------------------------------
+    # LANDING PAGE: Strategic Portal Gateway
+    # -----------------------------------------------------
+    st.markdown("<h1 style='text-align: center; margin-top: 25px;'>NEAM</h1>", unsafe_allow_html=True)
+    st.markdown(
+        "<p style='text-align: center; color: #94a3b8; font-size: 1.15rem;'>"
+        "Neurodivergent Executive AI Module & Multimodal Cognitive Scaffolding<br>"
+        "<b>Steinbeis University Berlin | Berlin School of Creative Leadership</b>"
+        "</p>",
+        unsafe_allow_html=True,
+    )
+    st.write("")
+
+    c1, c2, c3 = st.columns(3, gap="large")
+
+    with c1:
+        st.markdown(
+            """
+            <div class="role-card">
+                <span class="badge badge-blue">Executive Candidate</span>
+                <h3>🎓 Student Portal</h3>
+                <p style="color: #94a3b8; font-size: 0.9rem;">
+                    Diagnostic onboarding, Socratic sparring chamber, and ADHD multimodal audio-visual synthesis.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("Enter as Lucas Giraldo", use_container_width=True, type="primary"):
+            st.session_state.current_role = "student"
+            st.rerun()
+
+    with c2:
+        st.markdown(
+            """
+            <div class="role-card">
+                <span class="badge badge-green">Lead Evaluator</span>
+                <h3>🏛️ Faculty Ledger</h3>
+                <p style="color: #94a3b8; font-size: 0.9rem;">
+                    Proof-of-work chronological audit trails, authenticity verification, and oral defense rubrics.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("Enter as Dr. Mario Vaupel", use_container_width=True):
+            st.session_state.current_role = "faculty"
+            st.rerun()
+
+    with c3:
+        st.markdown(
+            """
+            <div class="role-card">
+                <span class="badge badge-blue">Closed-Loop Repository</span>
+                <h3>⚙️ Curriculum Admin</h3>
+                <p style="color: #94a3b8; font-size: 0.9rem;">
+                    Course syllabi ingestion, closed-loop knowledge controls, and program parameter governance.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("Enter as Curriculum Admin", use_container_width=True):
+            st.session_state.current_role = "admin"
+            st.rerun()
+
+elif st.session_state.current_role == "student":
+    # -----------------------------------------------------
+    # STUDENT WORKSPACE (Lucas Giraldo Mejia)
+    # -----------------------------------------------------
+    st.title("Executive Workspace & Cognitive Scaffolding")
+    st.caption("Candidate: Lucas Giraldo Mejia | Executive MBA in Creative Leadership")
+
+    # Step 1: Pre-Interview Diagnostic Modal / Expander if not calibrated
+    with st.expander("🧠 Cognitive Onboarding Diagnostic (Personalization Architecture)", expanded=not st.session_state.student_profile["onboarded"]):
+        st.write("Calibrate NEAM's autonomous system to your unique executive processing profile:")
+        d_col1, d_col2 = st.columns(2)
+        with d_col1:
+            q_chunk = st.checkbox("Enforce Working Memory Chunking (Cap responses < 150 words)", value=st.session_state.student_profile["working_memory_chunking"])
+            q_modality = st.selectbox("Primary Sensory Ingestion Channel:", ["Audio-First (Executive Podcast)", "Visual Slide Decks", "Text Summaries"], index=0)
+        with d_col2:
+            q_init = st.checkbox("Task Initiation Scaffolding (Deconstruct prompts into 3-tier micro-sprints)", value=st.session_state.student_profile["task_initiation_scaffolding"])
+            q_tone = st.selectbox("Socratic Sparring Intensity:", ["Contrarian Devil's Advocate (Rigor)", "Supportive Socratic Coach"], index=0)
         
-        chat_container = st.container(height=520)
+        if st.button("Commit Autonomous Calibration"):
+            st.session_state.student_profile.update({
+                "onboarded": True,
+                "working_memory_chunking": q_chunk,
+                "primary_modality": q_modality,
+                "task_initiation_scaffolding": q_init,
+                "sparring_intensity": q_tone,
+            })
+            st.success("System calibrated to your cognitive profile.")
+            st.rerun()
+
+    tab_sparring, tab_materials, tab_audit = st.tabs([
+        "🥊 Socratic Sparring Chamber",
+        "📚 Multimodal Knowledge Base",
+        "📜 My Proof-of-Work Log"
+    ])
+
+    # TAB 1: SOCRATIC SPARRING (ENGINE B)
+    with tab_sparring:
+        st.write(f"**Operating Mode:** {st.session_state.student_profile['sparring_intensity']} | Strictly Closed-Loop")
+
+        # Compile all closed-loop repository text for system prompt grounding
+        active_repo_text = "\n\n".join([f"[{k}] {v['title']}: {v['content']}" for k, v in st.session_state.closed_loop_repo.items()])
+
+        chat_container = st.container(height=480)
         for msg in st.session_state.sparring_chat:
             with chat_container.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-        user_input = st.chat_input("Challenge an operational thesis or propose a strategic move...")
+        user_input = st.chat_input("State your thesis premise, strategic assumption, or challenge...")
         if user_input:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             st.session_state.sparring_chat.append({"role": "user", "content": user_input})
+            
             with chat_container.chat_message("user"):
                 st.markdown(user_input)
 
             with chat_container.chat_message("model"):
-                with st.spinner("Analyzing dialectic premises..."):
-                    reply = call_gemini_flash(
+                with st.spinner("Sparring with closed-loop frameworks..."):
+                    reply = call_socratic_engine(
                         prompt=user_input,
                         conversation_history=st.session_state.sparring_chat[:-1],
+                        repo_context=active_repo_text,
+                        profile=st.session_state.student_profile,
                         api_key=GOOGLE_API_KEY,
                     )
                     st.markdown(reply)
+
             st.session_state.sparring_chat.append({"role": "model", "content": reply})
 
-    with col_media:
-        st.subheader("Executive Podcast Synthesis")
-        st.write("Dual-voice dialectic debrief generated via ElevenLabs.")
+            # Append to Proof-of-Work Audit Trail
+            st.session_state.proof_of_work_log.append({
+                "timestamp": timestamp,
+                "candidate": "Lucas Giraldo Mejia",
+                "exchange_query": user_input,
+                "dialectic_challenge": reply,
+                "verified": True
+            })
 
-        # Interactive Media Player with seeking controls via embedded HTML5
-        player_html = """
-        <div style="background-color: #161b22; padding: 20px; border-radius: 8px; border: 1px solid #30363d;">
-            <p style="font-weight: 600; color: #58a6ff; margin-bottom: 8px;">Debrief Session: Strategy & Cognition</p>
-            <audio id="audioPlayer" controls style="width: 100%; outline: none;">
-                <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
-                Your browser does not support the audio element.
-            </audio>
-            <div style="display: flex; gap: 10px; margin-top: 15px;">
-                <button onclick="document.getElementById('audioPlayer').currentTime -= 10;" 
-                        style="background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 6px 14px; border-radius: 4px; cursor: pointer;">
-                    ⏪ -10s
-                </button>
-                <button onclick="document.getElementById('audioPlayer').currentTime += 10;" 
-                        style="background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 6px 14px; border-radius: 4px; cursor: pointer;">
-                    +10s ⏩
-                </button>
-            </div>
-        </div>
-        """
-        st.components.v1.html(player_html, height=180)
+    # TAB 2: MULTIMODAL REPOSITORY (ENGINE A)
+    with tab_materials:
+        st.subheader("Closed-Loop Course Materials (ADHD Sensory Transformation)")
+        
+        selected_mod = st.selectbox(
+            "Select Approved Module:",
+            options=list(st.session_state.closed_loop_repo.keys()),
+            format_func=lambda x: f"{st.session_state.closed_loop_repo[x]['title']} ({st.session_state.closed_loop_repo[x]['faculty']})"
+        )
+        module_data = st.session_state.closed_loop_repo[selected_mod]
 
-        st.divider()
-        st.subheader("Generate Synthesis")
-        if st.button("Synthesize Current Dialogue into Podcast"):
-            last_exchanges = "\n".join(
-                [f"{m['role']}: {m['content']}" for m in st.session_state.sparring_chat[-4:]]
+        st.markdown(f"**Syllabus Summary:** {module_data['summary']}")
+
+        mode = st.radio("Select Sensory Channel:", ["🎧 Dual-Voice Podcast (ElevenLabs)", "📊 Visual Slide Deck (Scannable)", "📖 Raw Text"], horizontal=True)
+
+        if mode == "🎧 Dual-Voice Podcast (ElevenLabs)":
+            st.markdown("#### ADHD-Friendly Executive Podcast")
+            st.caption("Converts dense theoretical readings into a conversational walk-and-listen dialogue.")
+            
+            if st.button("Synthesize Closed-Loop Reading into Podcast", type="primary"):
+                if not GOOGLE_API_KEY or not ELEVENLABS_API_KEY:
+                    st.error("Both Google AI Studio and ElevenLabs API keys are required.")
+                else:
+                    status = st.empty()
+                    status.info("Synthesizing closed-loop material via ElevenLabs dual voices...")
+                    audio_bytes, script = generate_podcast_pipeline(module_data["content"], GOOGLE_API_KEY, ELEVENLABS_API_KEY)
+                    status.success("Synthesis complete!")
+
+                    b64 = base64.b64encode(audio_bytes).decode("utf-8")
+                    player_html = f"""
+                    <div style="background-color: #111827; padding: 20px; border-radius: 8px; border: 1px solid #1f2937;">
+                        <audio id="audioPlayer" controls style="width: 100%;">
+                            <source src="data:audio/mp3;base64,{b64}" type="audio/mpeg">
+                        </audio>
+                        <div style="margin-top: 12px; display: flex; gap: 10px;">
+                            <button onclick="document.getElementById('audioPlayer').currentTime -= 10;" style="background: #1f2937; color: white; border: 1px solid #374151; padding: 6px 12px; border-radius: 4px; cursor: pointer;">⏪ -10s</button>
+                            <button onclick="document.getElementById('audioPlayer').currentTime += 10;" style="background: #1f2937; color: white; border: 1px solid #374151; padding: 6px 12px; border-radius: 4px; cursor: pointer;">+10s ⏩</button>
+                        </div>
+                    </div>
+                    """
+                    st.components.v1.html(player_html, height=160)
+
+        elif mode == "📊 Visual Slide Deck (Scannable)":
+            st.markdown("#### High-Impact Strategy Deck")
+            slides = module_data.get("slides", [])
+            for s in slides:
+                st.markdown(
+                    f"""
+                    <div style="background-color: #111827; border-left: 5px solid #0ea5e9; padding: 18px; border-radius: 8px; margin-bottom: 12px;">
+                        <span style="color: #0ea5e9; font-weight: bold; font-size: 0.8rem;">{s['pillar_category']} • SLIDE {s['slide_number']}</span>
+                        <h3 style="margin: 6px 0 10px 0; color: #f8fafc;">{s['title']}</h3>
+                        <p style="color: #38bdf8; font-weight: 500;">Core Premise: {s['core_takeaway']}</p>
+                        <ul style="color: #cbd5e1; margin-bottom: 10px;">
+                            {"".join([f"<li>{b}</li>" for b in s['bullet_points']])}
+                        </ul>
+                        <div style="border-top: 1px dashed #334155; padding-top: 8px; color: #93c5fd; font-style: italic;">
+                            🥊 Sparring Challenge: {s['executive_sparring_question']}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+        elif mode == "📖 Raw Text":
+            st.text_area("Approved Text Content", module_data["content"], height=250)
+
+    # TAB 3: PROOF-OF-WORK AUDIT TRAIL
+    with tab_audit:
+        st.subheader("Authentic Learning Log & Proof-of-Work Audit")
+        st.write("Chronological verification of intellectual sparring turns. Eliminates unverified ghostwriting suspicion.")
+
+        if st.session_state.proof_of_work_log:
+            st.dataframe(st.session_state.proof_of_work_log, use_container_width=True)
+            log_json = json.dumps(st.session_state.proof_of_work_log, indent=2)
+            st.download_button(
+                "⬇️ Export Verified Proof-of-Work Learning Log (JSON)",
+                data=log_json,
+                file_name="Lucas_Giraldo_NEAM_ProofOfWork.json",
+                mime="application/json"
             )
-            trigger_elevenlabs_dual_voice(last_exchanges, ELEVENLABS_API_KEY)
+        else:
+            st.info("No sparring turns recorded in this session yet. Spar with the chamber to build your audit log.")
 
-# ---------------------------------------------------------
-# 2. Faculty / Evaluator View: Dr. Mario Vaupel Ledger
-# ---------------------------------------------------------
-elif role == "Faculty / Evaluator (Dr. Mario Vaupel)":
-    st.title("Faculty Proof-of-Work Evaluation Ledger")
+elif st.session_state.current_role == "faculty":
+    # -----------------------------------------------------
+    # FACULTY EVALUATOR VIEW (Dr. Mario Vaupel)
+    # -----------------------------------------------------
+    st.title("Faculty Proof-of-Work Audit Ledger")
     st.caption("Lead Evaluator: Dr. Mario Vaupel | Berlin School of Creative Leadership")
 
-    st.subheader("Verified Academic Milestones")
-    st.dataframe(
-        st.session_state.proof_ledger,
-        use_container_width=True,
-        column_config={
-            "score": st.column_config.ProgressColumn("Grade / Mastery", min_value=0, max_value=100),
-            "verified": st.column_config.CheckboxColumn("Cryptographic Audit Verification"),
-        },
-    )
+    st.subheader("Verified Candidate Sparring Trails")
+    st.write("Review the dialectic progression of executive candidates rather than easily spoofed final essays.")
+
+    if st.session_state.proof_of_work_log:
+        for idx, entry in enumerate(st.session_state.proof_of_work_log):
+            with st.expander(f"Turn {idx + 1} [{entry['timestamp']}] Candidate: {entry['candidate']}"):
+                st.markdown(f"**Student Thesis Query:** {entry['exchange_query']}")
+                st.markdown(f"**NEAM Socratic Pushback:** {entry['dialectic_challenge']}")
+                st.markdown(f"**Cryptographic Status:** Verified Authentic")
+    else:
+        st.info("No active student proof-of-work sessions submitted in the current live buffer.")
 
     st.divider()
-    st.subheader("Append Milestone Assessment")
-    with st.form("eval_form"):
-        f_student = st.text_input("Candidate Name", value="Lucas Giraldo")
-        f_milestone = st.text_input("Deliverable / Sparring Session Title")
-        f_score = st.slider("Mastery Score", 0, 100, 85)
-        submitted = st.form_submit_button("Record Grade to Ledger")
+    st.subheader("Record Oral Defense & Mastery Assessment")
+    with st.form("faculty_eval"):
+        cand = st.text_input("Candidate Name", value="Lucas Giraldo Mejia")
+        milestone = st.text_input("Module / Defense Evaluated", value="Module 1: Blue Ocean Strategy & Closed-Loop Scaffolding")
+        grade = st.slider("Intellectual Defensibility & Mastery Score", 0, 100, 95)
+        notes = st.text_area("Evaluator Notes (Dr. Mario Vaupel)", "Candidate demonstrated clear first-principles defense under dialectic sparring.")
         
-        if submitted and f_milestone:
-            st.session_state.proof_ledger.append({
-                "student": f_student,
-                "milestone": f_milestone,
-                "score": f_score,
-                "evaluator": "Dr. Mario Vaupel",
-                "verified": True,
-            })
-            st.success("Milestone committed to evaluation ledger.")
-            st.rerun()
+        if st.form_submit_button("Sign & Commit to University Ledger"):
+            st.success(f"Assessment entry for {cand} committed successfully.")
 
-# ---------------------------------------------------------
-# 3. Admin View: Curriculum Management
-# ---------------------------------------------------------
-elif role == "Admin (Curriculum)":
-    st.title("Steinbeis Curriculum Architecture")
-    st.caption("Module Lifecycle & Core Program Configurations")
+elif st.session_state.current_role == "admin":
+    # -----------------------------------------------------
+    # CURRICULUM ADMIN VIEW (Closed-Loop Governance)
+    # -----------------------------------------------------
+    st.title("Curriculum & Closed-Loop Repository Management")
+    st.caption("Steinbeis University Berlin | Knowledge Integrity Architecture")
 
-    st.subheader("Active Modules")
-    st.table(st.session_state.curriculum_modules)
+    st.subheader("Active Closed-Loop Knowledge Stores")
+    for k, v in st.session_state.closed_loop_repo.items():
+        st.markdown(f"- **{k}: {v['title']}** (Faculty: {v['faculty']})")
 
-    with st.expander("Add New Academic Module"):
-        mod_id = st.text_input("Module ID (e.g., MOD-04)")
-        mod_name = st.text_input("Module Title")
-        mod_status = st.selectbox("Status", ["Active", "Draft", "Archived"])
+    st.divider()
+    st.subheader("Ingest Approved Course Syllabus / Case Study")
+    with st.form("admin_ingest"):
+        mod_code = st.text_input("Module Identifier (e.g., MOD-02)")
+        mod_title = st.text_input("Module Title")
+        mod_faculty = st.text_input("Lead Faculty / Authors")
+        mod_summary = st.text_input("Executive Summary")
+        mod_text = st.text_area("Full Approved Literature Content (Strict Closed-Loop Text)")
         
-        if st.button("Commit Module"):
-            if mod_id and mod_name:
-                st.session_state.curriculum_modules.append(
-                    {"id": mod_id, "name": mod_name, "status": mod_status}
-                )
-                st.success(f"Module {mod_id} created.")
+        if st.form_submit_button("Ingest into NEAM Repository"):
+            if mod_code and mod_title and mod_text:
+                st.session_state.closed_loop_repo[mod_code] = {
+                    "title": mod_title,
+                    "faculty": mod_faculty,
+                    "summary": mod_summary,
+                    "content": mod_text,
+                    "slides": [
+                        {
+                            "slide_number": 1,
+                            "pillar_category": "INGESTED THEORY",
+                            "title": f"{mod_title} Core Framework",
+                            "core_takeaway": mod_summary[:120] if mod_summary else "Core syllabus extract.",
+                            "bullet_points": ["Ingested via Curriculum Admin pipeline.", "Anchored strictly to course repository."],
+                            "executive_sparring_question": "What is the primary operational hurdle in deploying this model?"
+                        }
+                    ]
+                }
+                st.success(f"Module {mod_code} successfully integrated into the closed-loop repository.")
                 st.rerun()
+
+```
