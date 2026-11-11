@@ -1,10 +1,3 @@
-You accidentally copied the conversational markdown text along with the Python code block into your `/mount/src/neam-app/app.py` file.
-
-Line 3 is trying to execute the conversational sentence (`Reading your strategic proposal clarifies...`) as raw Python code.
-
-Wipe `app.py` clean and paste **only** the code below:
-
-```python
 import os
 import io
 import time
@@ -569,5 +562,3 @@ elif st.session_state.current_role == "admin":
                 }
                 st.success(f"Module {mod_code} successfully integrated into the closed-loop repository.")
                 st.rerun()
-
-```
