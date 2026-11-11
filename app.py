@@ -4,59 +4,167 @@ import os
 import glob
 import io
 import re
+import base64
+import streamlit.components.v1 as components
 from google import genai
 from google.genai import types
 
 # ---------------------------------------------------------
-# PAGE CONFIGURATION & THEME
+# PAGE CONFIGURATION & THEME (WHITE / COBALT / EMERALD)
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="NEAM | Neurodivergent Executive AI Module",
-    page_icon="🧠",
+    page_title="NEAM | Executive Academic Portal",
+    page_icon="🏛️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 CUSTOM_CSS = """
 <style>
-    :root {
-        --primary: #10b981;
-        --primary-hover: #059669;
-        --bg-surface: #0f172a;
-        --card-bg: #1e293b;
-        --text-main: #f8fafc;
-        --text-muted: #94a3b8;
-        --border-color: #334155;
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
     
     .stApp {
-        background-color: var(--bg-surface);
-        color: var(--text-main);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background-color: #f8fafc;
+        color: #0f172a;
+    }
+
+    /* Top Navigation Header */
+    .portal-banner {
+        background: #ffffff;
+        border-bottom: 1px solid #e2e8f0;
+        padding: 16px 28px;
+        margin: -4rem -4rem 1.5rem -4rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+    .portal-brand {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #0f172a;
+        letter-spacing: -0.02em;
+    }
+    .portal-sub {
+        font-size: 0.8rem;
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    /* Landing Role Cards */
+    .role-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+        transition: all 0.2s ease-in-out;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    .role-card:hover {
+        border-color: #1e40af;
+        box-shadow: 0 6px 12px rgba(30,64,175,0.08);
+    }
+    .role-icon {
+        font-size: 2.8rem;
+        margin-bottom: 12px;
+    }
+    .role-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 6px;
+    }
+    .role-desc {
+        font-size: 0.85rem;
+        color: #64748b;
+        line-height: 1.5;
+        min-height: 60px;
+    }
+
+    /* Gamification Avatar Card */
+    .warrior-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .warrior-avatar {
+        font-size: 2.2rem;
+        background: #f1f5f9;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #059669;
+    }
+    .gear-badges {
+        display: flex;
+        gap: 8px;
+        margin-top: 6px;
+    }
+    .gear-badge {
+        font-size: 0.72rem;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-weight: 600;
+    }
+    .gear-unlocked {
+        background-color: #ecfdf5;
+        color: #047857;
+        border: 1px solid #a7f3d0;
+    }
+    .gear-locked {
+        background-color: #f1f5f9;
+        color: #94a3b8;
+        border: 1px dashed #cbd5e1;
+    }
+
+    .instruction-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #64748b;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+    }
+    
+    .instruction-text {
+        font-size: 0.95rem;
+        line-height: 1.55;
+        color: #1e293b;
+        margin-bottom: 16px;
     }
 
     input, textarea, [data-testid="stChatInput"] textarea {
+        background-color: #ffffff !important;
         color: #0f172a !important;
-        background-color: #f8fafc !important;
-        caret-color: #059669 !important;
-        font-size: 1rem !important;
-    }
-    
-    [data-testid="stChatInput"] textarea::placeholder {
-        color: #64748b !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 8px !important;
     }
 
-    .metric-badge {
-        display: inline-block;
-        padding: 4px 10px;
-        border-radius: 9999px;
-        font-size: 0.75rem;
+    .stButton>button {
+        background-color: #1e40af;
+        color: #ffffff;
+        border-radius: 8px;
         font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        background-color: rgba(16, 185, 129, 0.15);
-        color: var(--primary);
-        border: 1px solid rgba(16, 185, 129, 0.3);
+        border: none;
+        transition: all 0.2s;
+    }
+    .stButton>button:hover {
+        background-color: #1d4ed8;
+        color: #ffffff;
     }
 </style>
 """
@@ -69,7 +177,7 @@ raw_keys = st.secrets.get("GEMINI_API_KEY", "")
 api_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
 
 if not api_keys:
-    st.error("⚠️ GEMINI_API_KEY missing. Please configure it in your Streamlit Cloud Secrets.")
+    st.error("⚠️ GEMINI_API_KEY missing. Please configure it in Streamlit Secrets.")
     st.stop()
 
 elevenlabs_key = st.secrets.get("ELEVENLABS_API_KEY", None)
@@ -79,11 +187,11 @@ def get_gemini_client(key: str):
 
 ACTIVE_MODEL = "gemini-3.8-flash"
 
-# Socratic sparring streaming generator
 def stream_socratic_response(prompt_text: str, system_instr: str):
     config = types.GenerateContentConfig(
         system_instruction=system_instr,
-        temperature=0.7
+        temperature=0.6,
+        max_output_tokens=220,
     )
     for key in api_keys:
         try:
@@ -103,7 +211,6 @@ def stream_socratic_response(prompt_text: str, system_instr: str):
                 continue
             raise e
 
-# Studio script & deck generator
 def generate_studio_text(prompt_text: str):
     config = types.GenerateContentConfig(temperature=0.7)
     for key in api_keys:
@@ -120,16 +227,12 @@ def generate_studio_text(prompt_text: str):
             if "429" in err or "quota" in err or "resource_exhausted" in err:
                 continue
             raise e
-    raise RuntimeError("Model services currently unavailable. Check API keys and quotas.")
+    raise RuntimeError("API services currently unavailable.")
 
-# Multi-speaker dual-voice neural audio generator (ElevenLabs)
 def synthesize_dual_voice_podcast(script_text: str, api_token: str) -> bytes:
     from elevenlabs.client import ElevenLabs
     client_tts = ElevenLabs(api_key=api_token)
     
-    # Pre-configured natural voices:
-    # Host A: "Brian" (Deep, articulate, academic tone)
-    # Host B: "Alice" (Engaging, confident executive tone)
     VOICE_HOST_A = "nPczCjzI2devNBz1zQrb"  # Brian
     VOICE_HOST_B = "Xb7hH8MSUJpSbSDYk0k2"  # Alice
 
@@ -155,395 +258,573 @@ def synthesize_dual_voice_podcast(script_text: str, api_token: str) -> bytes:
             speaker = VOICE_HOST_A
 
         if utterance.strip():
-            audio_stream = client_tts.generate(
-                text=utterance.strip(),
-                voice=speaker,
-                model="eleven_turbo_v2_5"
-            )
+            try:
+                audio_stream = client_tts.text_to_speech.convert(
+                    voice_id=speaker,
+                    text=utterance.strip(),
+                    model_id="eleven_turbo_v2_5"
+                )
+            except AttributeError:
+                audio_stream = client_tts.generate(
+                    text=utterance.strip(),
+                    voice=speaker,
+                    model="eleven_turbo_v2_5"
+                )
+
             for chunk in audio_stream:
                 combined_audio.write(chunk)
 
     combined_audio.seek(0)
     return combined_audio.read()
 
-# ---------------------------------------------------------
-# CURRICULUM DIRECTORY & INGESTION
-# ---------------------------------------------------------
-CURRICULUM_DIR = "curriculum"
-os.makedirs(CURRICULUM_DIR, exist_ok=True)
+def render_podcast_player(audio_bytes: bytes, title: str = "Executive Briefing"):
+    b64_audio = base64.b64encode(audio_bytes).decode()
+    player_html = f"""
+    <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px 20px; margin: 12px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-weight: 700; font-size: 0.9rem; color: #0f172a;">🎧 {title}</span>
+            <span id="audio-time" style="font-size: 0.8rem; font-family: monospace; color: #64748b; font-weight: 600;">00:00 / 00:00</span>
+        </div>
+        
+        <audio id="neam-audio" src="data:audio/mp3;base64,{b64_audio}" preload="metadata"></audio>
+        
+        <input type="range" id="seek-bar" value="0" min="0" max="100" style="width: 100%; accent-color: #059669; cursor: pointer; margin-bottom: 12px;">
 
-def extract_file_content(filepath: str) -> str:
-    if filepath.endswith(".pdf"):
-        try:
-            import pypdf
-            reader = pypdf.PdfReader(filepath)
-            text = ""
-            for page in reader.pages:
-                text += (page.extract_text() or "") + "\n"
-            return text
-        except Exception as e:
-            return f"Error reading PDF: {e}"
-    else:
-        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-            return f.read()
+        <div style="display: flex; justify-content: center; align-items: center; gap: 14px;">
+            <button onclick="skipTime(-10)" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 14px; font-weight: 700; color: #1e293b; cursor: pointer; font-size: 0.82rem;">
+                ⏪ -10s
+            </button>
+            <button id="play-pause-btn" onclick="togglePlay()" style="background: #1e40af; border: none; border-radius: 50%; width: 42px; height: 42px; color: #ffffff; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(30,64,175,0.25);">
+                ▶
+            </button>
+            <button onclick="skipTime(10)" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 14px; font-weight: 700; color: #1e293b; cursor: pointer; font-size: 0.82rem;">
+                +10s ⏩
+            </button>
+        </div>
+    </div>
 
-sample_path = os.path.join(CURRICULUM_DIR, "Steinbeis_Core_Creative_Leadership.txt")
-if not os.path.exists(sample_path) and len(os.listdir(CURRICULUM_DIR)) == 0:
-    with open(sample_path, "w", encoding="utf-8") as f:
-        f.write(
-            "Steinbeis Creative Leadership Synthesis:\n"
-            "Executive leadership in non-linear environments requires balancing value innovation, "
-            "cognitive empathy, and organizational defensibility. Conventional management "
-            "often penalizes divergent problem-solving, whereas adaptive scaffolding enables creative "
-            "executives to transform strategic friction into competitive differentiation."
-        )
+    <script>
+        const audio = document.getElementById('neam-audio');
+        const playBtn = document.getElementById('play-pause-btn');
+        const seekBar = document.getElementById('seek-bar');
+        const timeDisplay = document.getElementById('audio-time');
+
+        function formatTime(seconds) {{
+            const mins = Math.floor(seconds / 60) || 0;
+            const secs = Math.floor(seconds % 60) || 0;
+            return `${{mins < 10 ? '0' : ''}}${{mins}}:${{secs < 10 ? '0' : ''}}${{secs}}`;
+        }}
+
+        function togglePlay() {{
+            if (audio.paused) {{
+                audio.play();
+                playBtn.innerHTML = '⏸';
+                playBtn.style.background = '#059669';
+            }} else {{
+                audio.pause();
+                playBtn.innerHTML = '▶';
+                playBtn.style.background = '#1e40af';
+            }}
+        }}
+
+        function skipTime(seconds) {{
+            audio.currentTime = Math.min(Math.max(audio.currentTime + seconds, 0), audio.duration);
+        }}
+
+        audio.addEventListener('loadedmetadata', () => {{
+            timeDisplay.innerText = `00:00 / ${{formatTime(audio.duration)}}`;
+        }});
+
+        audio.addEventListener('timeupdate', () => {{
+            const progress = (audio.currentTime / audio.duration) * 100 || 0;
+            seekBar.value = progress;
+            timeDisplay.innerText = `${{formatTime(audio.currentTime)}} / ${{formatTime(audio.duration)}}`;
+        }});
+
+        seekBar.addEventListener('input', () => {{
+            audio.currentTime = (seekBar.value / 100) * audio.duration;
+        }});
+
+        audio.addEventListener('ended', () => {{
+            playBtn.innerHTML = '▶';
+            playBtn.style.background = '#1e40af';
+            seekBar.value = 0;
+        }});
+    </script>
+    """
+    components.html(player_html, height=140)
 
 # ---------------------------------------------------------
-# SESSION STATE INITIALIZATION
+# GLOBAL REPOSITORY & STATE INITIALIZATION
 # ---------------------------------------------------------
+if "current_role" not in st.session_state:
+    st.session_state.current_role = None  # None = Landing Page
+
 if "profile" not in st.session_state:
     st.session_state.profile = {
         "name": "Lucas",
         "industry": "Creative Direction / Retail Management",
         "passions": "Cinema Production, Industrial Design, Mid-Century Architecture",
-        "working_memory_limit": 150,
+        "working_memory_limit": 140,
         "stance": "Adversarial Boardroom Critic"
     }
+
+if "curriculum_modules" not in st.session_state:
+    st.session_state.curriculum_modules = {
+        "mod_1": {
+            "title": "Module 1: Evolution of Human Resource Management",
+            "tag": "HR MANAGEMENT (MBA)",
+            "submodule": "Evolution of Strategic Human Capital",
+            "instructions": (
+                "Looking into the literature, you will notice an evolution of terms describing Human Resource "
+                "Management in organizations, starting as Labor Management, via HR Administration and evolving "
+                "into People Management. Analyze the different definitions to discern the mindset of executive "
+                "leaders. How has it developed over the years in response to organizational friction and agility?"
+            ),
+            "exercise": (
+                "Formulate a 3-part strategic positioning argument defending why People Management must act as "
+                "an adaptive scaffold rather than a rigid compliance function in high-divergence creative industries."
+            ),
+            "resources": [
+                {
+                    "id": "res_1",
+                    "title": "Lengnick-Hall: The Evolution of Strategic HRM",
+                    "type": "Literature (Core Paper)",
+                    "content": "The transition from personnel administration to strategic capital involves scaffolding organizational capabilities rather than enforcing static compliance."
+                },
+                {
+                    "id": "res_2",
+                    "title": "Vaupel & Meyer: Strategic Management & Vision Framework",
+                    "type": "Slides / Academic Lecture",
+                    "content": "Strategic positioning requires synchronizing cognitive agility, defensible value architectures, and executive empathy across cross-functional leadership teams."
+                },
+                {
+                    "id": "res_3",
+                    "title": "Boon & Eckardt: Integrating Strategic Human Capital",
+                    "type": "Literature (Advanced Reading)",
+                    "content": "Micro-foundations of human capital suggest individual variance and neurodivergent divergence constitute non-linear drivers of sustained innovation."
+                }
+            ]
+        }
+    }
+
+if "active_module_id" not in st.session_state:
+    st.session_state.active_module_id = "mod_1"
+
+if "completed_resources" not in st.session_state:
+    st.session_state.completed_resources = set()
+
+if "exercise_submitted" not in st.session_state:
+    st.session_state.exercise_submitted = False
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "audit_log" not in st.session_state:
-    st.session_state.audit_log = []
+if "student_submissions" not in st.session_state:
+    st.session_state.student_submissions = []
 
-if "current_sprint_step" not in st.session_state:
-    st.session_state.current_sprint_step = 1
+if "faculty_grades" not in st.session_state:
+    st.session_state.faculty_grades = {}
 
-if "selected_curriculum_text" not in st.session_state:
-    st.session_state.selected_curriculum_text = ""
+active_mod = st.session_state.curriculum_modules[st.session_state.active_module_id]
 
-if "selected_doc_name" not in st.session_state:
-    st.session_state.selected_doc_name = "Steinbeis_Core_Creative_Leadership.txt"
-    st.session_state.selected_curriculum_text = extract_file_content(sample_path)
+if "active_reading" not in st.session_state:
+    st.session_state.active_reading = active_mod["resources"][0]
 
 # ---------------------------------------------------------
-# AUDIT LOG HELPER
+# VIEW 1: LANDING PAGE (ROLE SELECTOR)
 # ---------------------------------------------------------
-def log_audit_entry(event_type: str, actor: str, content: str, meta: str = ""):
-    timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    st.session_state.audit_log.append({
-        "timestamp": timestamp,
-        "event_type": event_type,
-        "actor": actor,
-        "content": content,
-        "meta": meta
-    })
+if st.session_state.current_role is None:
+    st.markdown("""
+    <div style="text-align: center; margin: 3rem 0 2rem 0;">
+        <span style="font-size: 0.85rem; font-weight: 700; color: #1e40af; background: #dbeafe; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em;">
+            Steinbeis University • Berlin School of Creative Leadership
+        </span>
+        <h1 style="font-size: 2.4rem; font-weight: 800; color: #0f172a; margin-top: 12px; letter-spacing: -0.03em;">
+            NEAM Executive Academic Portal
+        </h1>
+        <p style="font-size: 1.05rem; color: #64748b; max-width: 650px; margin: 0 auto;">
+            Closed-loop cognitive scaffolding and verified Socratic assessment gateway. Select your institutional role to enter.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
-def generate_audit_markdown() -> str:
-    prof = st.session_state.profile
-    md = f"""# NEAM: Faculty Proof-of-Work Academic Audit Dossier
-**Institution:** Berlin School of Creative Leadership / Steinbeis University  
-**Student Founder:** {prof['name']}  
-**Industry Domain:** {prof['industry']}  
-**Evaluator Reference:** Prof. Dr. Mario Vaupel  
-**Generated:** {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}  
-
----
-
-## 1. Executive Cognitive Profile
-- **Active Document Analyzed:** {st.session_state.selected_doc_name}
-- **Reasoning Stance:** {prof['stance']}
-- **Chunking Threshold:** <{prof['working_memory_limit']} words
-- **Metaphorical Anchors:** {prof['passions']}
-
----
-
-## 2. Human Reasoning & Socratic Ledger
-"""
-    for entry in st.session_state.audit_log:
-        md += f"### `[{entry['timestamp']}]` | {entry['actor'].upper()} ({entry['event_type']})\n"
-        if entry['meta']:
-            md += f"*Context: {entry['meta']}*\n\n"
-        md += f"{entry['content']}\n\n---\n"
-    return md
-
-# ---------------------------------------------------------
-# SIDEBAR
-# ---------------------------------------------------------
-with st.sidebar:
-    st.markdown("### 🧠 NEAM Core Engine")
-    st.markdown("<span class='metric-badge'>Socratic Protocol Active</span>", unsafe_allow_html=True)
-    st.caption(f"Engine: `{ACTIVE_MODEL}`")
-    st.markdown("")
-
-    with st.expander("⚙️ Cognitive Diagnostic Profile", expanded=False):
-        with st.form("onboarding_form"):
-            name = st.text_input("Student Name", value=st.session_state.profile["name"])
-            industry = st.text_input("Leadership Domain", value=st.session_state.profile["industry"])
-            passions = st.text_area("Metaphor Anchors", value=st.session_state.profile["passions"])
-            stance = st.selectbox("Sparring Stance", ["Adversarial Boardroom Critic", "Supportive Executive Mentor"])
-            
-            if st.form_submit_button("Update Profile"):
-                st.session_state.profile.update({
-                    "name": name,
-                    "industry": industry,
-                    "passions": passions,
-                    "stance": stance
-                })
-                st.success("Profile saved.")
-
-    st.markdown("---")
-    st.markdown("#### 🎯 Socratic Sprint Progress")
-    steps = [
-        "1. Problem Definition & Boundary Test",
-        "2. Theoretical Grounding & Stress-Test",
-        "3. Defensibility & Strategic Synthesis"
-    ]
-    for idx, s in enumerate(steps, 1):
-        if idx == st.session_state.current_sprint_step:
-            st.markdown(f"**🟢 {s}** *(Active)*")
-        elif idx < st.session_state.current_sprint_step:
-            st.markdown(f"✅ ~~{s}~~")
-        else:
-            st.markdown(f"⚪ {s}")
-
-    st.markdown("---")
-    st.download_button(
-        label="📥 Download Proof-of-Work Dossier",
-        data=generate_audit_markdown(),
-        file_name=f"NEAM_Audit_{st.session_state.profile['name']}.md",
-        mime="text/markdown"
-    )
-
-# ---------------------------------------------------------
-# WORKSPACE TABS
-# ---------------------------------------------------------
-tab_library, tab_sparring, tab_studio = st.tabs([
-    "📚 University Curriculum Library",
-    "⚡ Socratic Sparring Room",
-    "🎙️ Multimodal Executive Studio"
-])
-
-# ---------------------------------------------------------
-# TAB 1: CURRICULUM LIBRARY
-# ---------------------------------------------------------
-with tab_library:
-    st.markdown("### 📚 Berlin School of Creative Leadership Verified Curriculum")
-    st.caption("Preloaded institutional readings and frameworks. Select a paper to instantly ground your Socratic sparring and podcast generator.")
-
-    all_files = sorted(glob.glob(os.path.join(CURRICULUM_DIR, "*.*")))
-    file_map = {os.path.basename(f): f for f in all_files}
-
-    col_lib_a, col_lib_b = st.columns([1, 1])
-
-    with col_lib_a:
-        st.markdown("#### 🏛️ Preloaded Module Literature")
-        if file_map:
-            selected_file_name = st.selectbox("Curriculum Library", list(file_map.keys()))
-            selected_path = file_map[selected_file_name]
-            
-            with open(selected_path, "rb") as f_bytes:
-                st.download_button(
-                    label=f"📥 Download Original Document ({selected_file_name})",
-                    data=f_bytes,
-                    file_name=selected_file_name,
-                    mime="application/pdf" if selected_file_name.endswith(".pdf") else "text/plain"
-                )
-
-            if st.button("🚀 Load into Active Workspace & Studio", use_container_width=True):
-                loaded_text = extract_file_content(selected_path)
-                st.session_state.selected_curriculum_text = loaded_text
-                st.session_state.selected_doc_name = selected_file_name
-                log_audit_entry("LIBRARY_DOC_SELECTED", "Student", f"Loaded curriculum: {selected_file_name}")
-                st.success(f"Loaded '{selected_file_name}' as active grounded source!")
-        else:
-            st.info("No curriculum files detected in `curriculum/` folder.")
-
-    with col_lib_b:
-        st.markdown("#### 📤 Upload External Literature")
-        uploaded_doc = st.file_uploader("Upload custom PDF or TXT", type=["pdf", "txt", "md"])
-        if uploaded_doc is not None:
-            saved_dest = os.path.join(CURRICULUM_DIR, uploaded_doc.name)
-            with open(saved_dest, "wb") as f_out:
-                f_out.write(uploaded_doc.getbuffer())
-            st.success(f"Saved '{uploaded_doc.name}' to library!")
-            st.session_state.selected_curriculum_text = extract_file_content(saved_dest)
-            st.session_state.selected_doc_name = uploaded_doc.name
-            st.rerun()
-
-    st.markdown("---")
-    st.markdown(f"**Currently Active Grounded Material:** `{st.session_state.selected_doc_name}`")
-    if st.session_state.selected_curriculum_text:
-        with st.expander("Preview Extracted Source Material Snippet"):
-            st.text(st.session_state.selected_curriculum_text[:1200] + "...")
-
-# ---------------------------------------------------------
-# TAB 2: SOCRATIC SPARRING ROOM (STREAMING FAST)
-# ---------------------------------------------------------
-with tab_sparring:
-    prof = st.session_state.profile
-    st.markdown(f"### Socratic Sparring Partner: Step {st.session_state.current_sprint_step}/3")
-    st.caption(f"Profile: **{prof['name']}** | Grounded In: **{st.session_state.selected_doc_name}** | Ceiling: **{prof['working_memory_limit']} words**")
-
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    user_prompt = st.chat_input("State your thesis or critique...")
-
-    if user_prompt:
-        st.session_state.messages.append({"role": "user", "content": user_prompt})
-        log_audit_entry("STUDENT_SPARRING_THESIS", prof['name'], user_prompt, meta="Direct Chat")
-
-        with st.chat_message("user"):
-            st.markdown(user_prompt)
-
-        socratic_system = f"""
-You are the Socratic sparring partner inside NEAM, working with executive student {prof['name']}.
-Evaluator: Prof. Dr. Mario Vaupel (Berlin School of Creative Leadership / Steinbeis).
-
-GROUNDING MATERIAL ({st.session_state.selected_doc_name}):
-\"\"\"
-{st.session_state.selected_curriculum_text[:5000]}
-\"\"\"
-
-RULES:
-1. ANTI-GHOSTWRITING: Never draft answers or give textbook summaries. Dissect assumptions and demand justification.
-2. COGNITIVE CHUNKING: Strictly under {prof['working_memory_limit']} words.
-3. PERSONALIZATION: Use metaphors from {prof['passions']} and {prof['industry']}.
-4. STANCE: {prof['stance']}. Incisive and direct.
-"""
-        with st.chat_message("assistant"):
-            try:
-                response_stream = stream_socratic_response(
-                    prompt_text=f"Student inquiry: {user_prompt}",
-                    system_instr=socratic_system
-                )
-                assistant_reply = st.write_stream(response_stream)
-                st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
-                log_audit_entry("SOCRATIC_CHALLENGE", "NEAM AI", assistant_reply)
-            except Exception as e:
-                st.error(f"Error during sparring: {e}")
-
-        col_a, col_b = st.columns([3, 1])
-        with col_b:
-            if st.button("Advance Sprint Milestone ➡️"):
-                if st.session_state.current_sprint_step < 3:
-                    st.session_state.current_sprint_step += 1
-                    st.rerun()
-
-# ---------------------------------------------------------
-# TAB 3: MULTIMODAL EXECUTIVE STUDIO (DUAL-VOICE NEURAL AUDIO)
-# ---------------------------------------------------------
-with tab_studio:
-    prof = st.session_state.profile
-    st.markdown("### 🎙️ Grounded Multimodal Strategy Translation Engine")
-    st.caption(f"Currently Grounded In: **{st.session_state.selected_doc_name}**")
-
-    col1, col2 = st.columns([1, 1])
+    col1, col2, col3 = st.columns(3, gap="medium")
 
     with col1:
-        st.markdown("#### 🎧 Dual-Voice Neural Audio Podcast")
-        focus_angle = st.text_input(
-            "Discussion Angle (Optional)",
-            placeholder="e.g., Focus on value innovation and eliminating traditional overhead"
-        )
-        
-        generate_audio_btn = st.button("🎙️ Synthesize Executive Audio Podcast", use_container_width=True)
-
-        if generate_audio_btn:
-            material = st.session_state.selected_curriculum_text[:8000]
-            if not material:
-                st.warning("⚠️ Please select a reading in the Curriculum Library tab first.")
-            else:
-                podcast_script_prompt = f"""
-You are the Executive Audio Synthesizer inside NEAM.
-Generate an executive briefing podcast script between two hosts:
-- Host A: Analytical, thoughtful Socratic inquirer.
-- Host B: Energetic, pragmatic executive strategist.
-
-Topic / Angle: {focus_angle if focus_angle else 'Core theoretical frameworks'}
-
-GROUNDING MATERIAL:
-\"\"\"
-{material}
-\"\"\"
-
-TARGET EXECUTIVE:
-- Name: {prof['name']}
-- Industry: {prof['industry']}
-- Metaphors: {prof['passions']}
-
-SCRIPT REQUIREMENTS:
-1. Ground arguments 100% in the source material.
-2. Address {prof['name']} directly by name 2 to 3 times to refocus attention.
-3. Translate theoretical frameworks using concrete analogies from {prof['passions']}.
-4. Length: concise dialogue (approx. 250-350 words, 5-6 total turns between Host A and Host B).
-Format strictly with alternating lines starting with 'Host A:' or 'Host B:'.
-"""
-                with st.spinner("1/2: Synthesizing grounded script with attention anchors..."):
-                    try:
-                        script_text = generate_studio_text(prompt_text=podcast_script_prompt)
-                        st.session_state.generated_script = script_text
-                    except Exception as e:
-                        st.error(f"Script synthesis error: {e}")
-                        script_text = None
-
-                if script_text:
-                    if not elevenlabs_key:
-                        st.info("💡 To generate broadcast-quality dual voices, add `ELEVENLABS_API_KEY` to Streamlit Secrets. Script is ready below:")
-                    else:
-                        with st.spinner("2/2: Rendering dual neural voices (Host A + Host B)..."):
-                            try:
-                                audio_bytes = synthesize_dual_voice_podcast(script_text, elevenlabs_key)
-                                st.session_state.neural_audio = audio_bytes
-                                log_audit_entry("NEURAL_PODCAST_SYNTHESIZED", "NEAM Studio", f"Document: {st.session_state.selected_doc_name}")
-                            except Exception as e:
-                                st.error(f"Neural audio rendering notice: {e}")
-
-        # Render Neural Audio Player
-        if "neural_audio" in st.session_state and st.session_state.neural_audio:
-            st.success("🎧 Broadcast-Quality Dual-Voice Podcast Ready!")
-            st.audio(st.session_state.neural_audio, format="audio/mp3")
-            st.download_button(
-                "📥 Download Episode (.mp3)",
-                data=st.session_state.neural_audio,
-                file_name=f"NEAM_Podcast_{prof['name']}.mp3",
-                mime="audio/mp3"
-            )
-
-        if "generated_script" in st.session_state and st.session_state.generated_script:
-            with st.expander("View Full Dialogue Script"):
-                st.text_area("Script", st.session_state.generated_script, height=300)
+        st.markdown("""
+        <div class="role-card">
+            <div class="role-icon">🏛️</div>
+            <div class="role-title">University Admin</div>
+            <div class="role-desc">Upload core curriculum modules, literature PDFs, and configure Socratic task parameters.</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Enter as University Admin", use_container_width=True):
+            st.session_state.current_role = "admin"
+            st.rerun()
 
     with col2:
-        st.markdown("#### 📊 Visual Strategy Blueprint")
-        deck_focus = st.text_input("Slide Deck Objective", placeholder="e.g., Executive Boardroom Synthesis")
+        st.markdown("""
+        <div class="role-card">
+            <div class="role-icon">👨‍🏫</div>
+            <div class="role-title">Faculty Evaluator</div>
+            <div class="role-desc">Review student defense ledgers, anti-ghostwriting proof dossiers, and grade submissions.</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Enter as Faculty (Dr. Vaupel)", use_container_width=True):
+            st.session_state.current_role = "teacher"
+            st.rerun()
 
-        if st.button("Generate Slide Deck Architecture", use_container_width=True):
-            material = st.session_state.selected_curriculum_text[:8000]
-            if not material:
-                st.warning("⚠️ Please select a reading in the Curriculum Library tab first.")
-            else:
-                deck_prompt = f"""
-Generate an 8-slide executive briefing deck blueprint for {prof['name']} strictly grounded in:
-\"\"\"
-{material}
-\"\"\"
+    with col3:
+        st.markdown("""
+        <div class="role-card">
+            <div class="role-icon">🎓</div>
+            <div class="role-title">Executive Student</div>
+            <div class="role-desc">Engage in fast Socratic sparring, generate dual-voice neural podcasts, and evolve your warrior avatar.</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Enter as Student (Lucas)", use_container_width=True):
+            st.session_state.current_role = "student"
+            st.rerun()
 
-Context: {prof['industry']} | Metaphors: {prof['passions']} | Focus: {deck_focus}
+# ---------------------------------------------------------
+# VIEW 2: UNIVERSITY ADMIN ENVIRONMENT
+# ---------------------------------------------------------
+elif st.session_state.current_role == "admin":
+    st.markdown("""
+    <div class="portal-banner">
+        <div>
+            <div class="portal-brand">🏛️ University Curriculum Administration</div>
+            <div class="portal-sub">Berlin School of Creative Leadership • Resource Repository Engine</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-For each slide, specify:
-- Slide Title
-- Visual Archetype (e.g., 2x2 Matrix, ERRC Grid)
-- 3 Core Bullets (max 15 words each, directly from the source)
+    if st.button("← Switch Institutional Role"):
+        st.session_state.current_role = None
+        st.rerun()
+
+    st.markdown("### 📤 Upload & Configure Module Curriculum")
+    st.caption("Materials uploaded here are immediately distributed to the Executive Student and Faculty review spaces.")
+
+    with st.form("admin_module_creator"):
+        c1, c2 = st.columns(2)
+        with c1:
+            mod_title = st.text_input("Module Name", value=active_mod["title"])
+            mod_tag = st.text_input("Academic Tag", value=active_mod["tag"])
+        with c2:
+            mod_sub = st.text_input("Sub-Module Topic", value=active_mod["submodule"])
+            mod_eval = st.text_input("Assigned Evaluator", value="Prof. Dr. Mario Vaupel")
+        
+        mod_inst = st.text_area("Faculty Instructions (Context)", value=active_mod["instructions"], height=100)
+        mod_ex = st.text_area("Module Capstone Defense Task", value=active_mod["exercise"], height=100)
+
+        st.markdown("#### 📚 Active Readings (3 Papers Required)")
+        r1_title = st.text_input("Reading 1 Title", value=active_mod["resources"][0]["title"])
+        r1_body = st.text_area("Reading 1 Key Excerpt / Core Thesis", value=active_mod["resources"][0]["content"])
+        
+        r2_title = st.text_input("Reading 2 Title", value=active_mod["resources"][1]["title"])
+        r2_body = st.text_area("Reading 2 Key Excerpt / Core Thesis", value=active_mod["resources"][1]["content"])
+
+        r3_title = st.text_input("Reading 3 Title", value=active_mod["resources"][2]["title"])
+        r3_body = st.text_area("Reading 3 Key Excerpt / Core Thesis", value=active_mod["resources"][2]["content"])
+
+        if st.form_submit_button("💾 Save & Publish Module to Portal", use_container_width=True):
+            st.session_state.curriculum_modules["mod_1"] = {
+                "title": mod_title,
+                "tag": mod_tag,
+                "submodule": mod_sub,
+                "instructions": mod_inst,
+                "exercise": mod_ex,
+                "resources": [
+                    {"id": "res_1", "title": r1_title, "type": "Literature (Core Paper)", "content": r1_body},
+                    {"id": "res_2", "title": r2_title, "type": "Lecture Slides", "content": r2_body},
+                    {"id": "res_3", "title": r3_title, "type": "Advanced Reading", "content": r3_body}
+                ]
+            }
+            st.session_state.active_reading = st.session_state.curriculum_modules["mod_1"]["resources"][0]
+            st.success("✅ Module updated successfully and propagated to Students and Evaluators!")
+
+# ---------------------------------------------------------
+# VIEW 3: TEACHER / FACULTY EVALUATOR ENVIRONMENT
+# ---------------------------------------------------------
+elif st.session_state.current_role == "teacher":
+    st.markdown("""
+    <div class="portal-banner">
+        <div>
+            <div class="portal-brand">👨‍🏫 Faculty Assessment Chamber | Prof. Dr. Mario Vaupel</div>
+            <div class="portal-sub">Steinbeis NEXT • Anti-Ghostwriting & Socratic Proof-of-Work Verification</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.button("← Switch Institutional Role"):
+        st.session_state.current_role = None
+        st.rerun()
+
+    st.markdown("### 📋 Student Submissions & Human Reasoning Audits")
+    
+    col_t1, col_t2 = st.columns([1, 1], gap="large")
+
+    with col_t1:
+        st.markdown("#### 🎓 Student Status: Lucas")
+        st.markdown(f"""
+        - **Domain:** {st.session_state.profile['industry']}
+        - **Readings Mastered:** {len(st.session_state.completed_resources)}/3
+        - **Task Status:** {'Submitted for Grading ✅' if st.session_state.exercise_submitted else 'In Progress ⏳'}
+        - **Socratic Interaction Rounds:** {len(st.session_state.messages) // 2} rounds
+        """)
+
+        st.markdown("---")
+        st.markdown("#### 📜 Proof-of-Work Socratic Reasoning Ledger")
+        st.caption("Verifies human dialectical thinking vs generative ghostwriting.")
+
+        if st.session_state.messages:
+            for idx, msg in enumerate(st.session_state.messages):
+                actor = "Student (Lucas)" if msg["role"] == "user" else "Socratic Sparring AI"
+                with st.expander(f"Interaction #{idx + 1} | {actor}"):
+                    st.write(msg["content"])
+        else:
+            st.info("No Socratic sparring interactions recorded for this student yet.")
+
+    with col_t2:
+        st.markdown("#### 📝 Faculty Assessment & Grading")
+        if not st.session_state.exercise_submitted:
+            st.warning("⏳ The student has not submitted the final capstone defense yet.")
+        else:
+            st.success("🎯 Capstone defense submitted by Lucas!")
+            grade = st.selectbox("Qualitative Assessment Grade", ["Distinction (1.0 - 1.3)", "Merit (1.7 - 2.0)", "Pass (2.3 - 3.0)", "Revise & Resubmit"])
+            feedback = st.text_area("Faculty Socratic Critique & Feedback", placeholder="Assess the integration of non-linear scaffolding and theoretical defensibility...")
+            
+            if st.button("Publish Faculty Evaluation & Record to Dossier", use_container_width=True):
+                st.session_state.faculty_grades["Lucas"] = {"grade": grade, "feedback": feedback, "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
+                st.success("✅ Evaluation recorded and stored in student record!")
+
+        if "Lucas" in st.session_state.faculty_grades:
+            fg = st.session_state.faculty_grades["Lucas"]
+            st.info(f"**Recorded Grade:** {fg['grade']}\n\n**Feedback:** {fg['feedback']}\n\n*Logged on: {fg['date']}*")
+
+# ---------------------------------------------------------
+# VIEW 4: STUDENT ENVIRONMENT (TWO-COLUMN WORKSPACE)
+# ---------------------------------------------------------
+elif st.session_state.current_role == "student":
+    st.markdown(f"""
+    <div class="portal-banner">
+        <div>
+            <div class="portal-brand">🎓 Steinbeis NEXT | Executive Workspace</div>
+            <div class="portal-sub">{active_mod['tag']} • {active_mod['submodule']}</div>
+        </div>
+        <div style="text-align: right;">
+            <span style="font-size: 0.85rem; font-weight: 600; color: #047857; background: #ecfdf5; padding: 6px 12px; border-radius: 20px; border: 1px solid #a7f3d0;">
+                ● Evaluator: Prof. Dr. Mario Vaupel Active
+            </span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_nav, _ = st.columns([1, 4])
+    with col_nav:
+        if st.button("← Switch Institutional Role"):
+            st.session_state.current_role = None
+            st.rerun()
+
+    # Gamification Avatar HUD
+    num_completed = len(st.session_state.completed_resources)
+    exercise_done = st.session_state.exercise_submitted
+
+    if exercise_done:
+        warrior_icon = "👑"
+        warrior_title = "Grand Executive Strategist"
+        stage_desc = "Mastery Level Reached. Socratic thesis defended and sent to Prof. Dr. Mario Vaupel."
+    elif num_completed == 3:
+        warrior_icon = "⚔️"
+        warrior_title = "Socratic Champion"
+        stage_desc = "Fully Armed with Helmet, Shield & Blade. Ready for Final Boardroom Defense."
+    elif num_completed == 2:
+        warrior_icon = "🛡️"
+        warrior_title = "Defensive Strategist"
+        stage_desc = "Shield of Defensibility unlocked. 1 theoretical reading remaining."
+    elif num_completed == 1:
+        warrior_icon = "🪖"
+        warrior_title = "Theoretical Scout"
+        stage_desc = "Helmet of Vision unlocked. Groundwork established."
+    else:
+        warrior_icon = "🥋"
+        warrior_title = "Academic Initiate"
+        stage_desc = "Base scaffolding. Complete readings or listen to audio to forge your armor."
+
+    badge_helmet = "gear-unlocked" if num_completed >= 1 else "gear-locked"
+    badge_shield = "gear-unlocked" if num_completed >= 2 else "gear-locked"
+    badge_sword = "gear-unlocked" if num_completed >= 3 else "gear-locked"
+    badge_crown = "gear-unlocked" if exercise_done else "gear-locked"
+
+    st.markdown(f"""
+    <div class="warrior-card">
+        <div class="warrior-avatar">{warrior_icon}</div>
+        <div style="flex-grow: 1;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 700; font-size: 1rem; color: #0f172a;">Student Avatar: {st.session_state.profile['name']} — <span style="color: #047857;">{warrior_title}</span></span>
+                <span style="font-size: 0.8rem; font-weight: 600; color: #64748b;">Progress: {num_completed}/3 Readings • Task: {'Completed ✅' if exercise_done else 'Pending ⏳'}</span>
+            </div>
+            <div style="font-size: 0.82rem; color: #64748b; margin-top: 2px;">{stage_desc}</div>
+            <div class="gear-badges">
+                <span class="gear-badge {badge_helmet}">🪖 Reading A (Helmet)</span>
+                <span class="gear-badge {badge_shield}">🛡️ Reading B (Shield)</span>
+                <span class="gear-badge {badge_sword}">⚔️ Reading C (Blade)</span>
+                <span class="gear-badge {badge_crown}">👑 Final Defense (Crown)</span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Main Two-Column Layout
+    col_left, col_right = st.columns([1, 1], gap="large")
+
+    with col_left:
+        st.markdown("<div class='instruction-label'>Module Instructions</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='instruction-text'>{active_mod['instructions']}</div>", unsafe_allow_html=True)
+
+        st.markdown("<hr style='margin: 1rem 0; border: none; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
+        st.markdown("<div class='instruction-label'>Curriculum Resources (Select & Transform)</div>", unsafe_allow_html=True)
+
+        for res in active_mod["resources"]:
+            is_done = res["id"] in st.session_state.completed_resources
+            icon_status = "✅" if is_done else "📄"
+            
+            with st.container():
+                c1, c2 = st.columns([3, 1])
+                with c1:
+                    st.markdown(f"**{icon_status} {res['title']}**")
+                    st.caption(f"{res['type']} • Status: {'Completed' if is_done else 'Pending'}")
+                with c2:
+                    if st.button("Focus 🎯", key=f"focus_{res['id']}", use_container_width=True):
+                        st.session_state.active_reading = res
+                        st.rerun()
+
+        st.markdown("<hr style='margin: 1.2rem 0; border: none; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
+        curr_r = st.session_state.active_reading
+        st.markdown(f"**Focused Material:** `{curr_r['title']}`")
+
+        t_read, t_audio, t_slides = st.tabs(["📖 Read Summary", "🎙️ Neural Audio (±10s)", "📊 Slide Deck"])
+
+        with t_read:
+            st.info(curr_r["content"])
+            if st.button(f"Mark '{curr_r['title']}' as Read (+Equip Warrior)", use_container_width=True):
+                st.session_state.completed_resources.add(curr_r["id"])
+                st.toast("⚔️ Gear equipped! Armor upgraded.", icon="🛡️")
+                st.rerun()
+
+        with t_audio:
+            st.caption("Generate a broadcast-quality dual-voice discussion between Host A & Host B grounded in this paper.")
+            if st.button("Synthesize Neural Podcast", key="gen_pod_btn", use_container_width=True):
+                prof = st.session_state.profile
+                script_prompt = f"""
+Executive brief script between Host A (inquiring professor) and Host B (pragmatic strategist).
+Material: {curr_r['content']}
+Executive: {prof['name']} ({prof['industry']}) | Metaphors: {prof['passions']}
+Address {prof['name']} directly twice. Keep concise (approx 200 words).
+Format strictly alternating:
+Host A: ...
+Host B: ...
 """
-                with st.spinner("Distilling slide architecture..."):
-                    try:
-                        st.session_state.generated_deck = generate_studio_text(prompt_text=deck_prompt)
-                        log_audit_entry("DECK_SYNTHESIZED", "NEAM Studio", f"Grounding: {st.session_state.selected_doc_name}")
-                    except Exception as e:
-                        st.error(f"Generation error: {e}")
+                with st.spinner("Synthesizing script and rendering neural audio..."):
+                    script = generate_studio_text(script_prompt)
+                    st.session_state.active_script = script
+                    if elevenlabs_key:
+                        audio_b = synthesize_dual_voice_podcast(script, elevenlabs_key)
+                        st.session_state.active_audio = audio_b
+                        st.session_state.completed_resources.add(curr_r["id"])
+                        st.toast("🎙️ Podcast finished! Warrior weapon equipped.", icon="⚔️")
+                    else:
+                        st.warning("Please configure ELEVENLABS_API_KEY in Secrets for multi-speaker neural audio.")
 
-        if "generated_deck" in st.session_state:
-            st.markdown(st.session_state.generated_deck)
+            if "active_audio" in st.session_state and st.session_state.active_audio:
+                render_podcast_player(st.session_state.active_audio, title=curr_r['title'])
+                st.download_button(
+                    label="📥 Download Episode (.mp3)",
+                    data=st.session_state.active_audio,
+                    file_name=f"Podcast_{curr_r['id']}.mp3",
+                    mime="audio/mp3",
+                    use_container_width=True
+                )
+
+            if "active_script" in st.session_state:
+                with st.expander("View Full Dialogue Transcript"):
+                    st.text(st.session_state.active_script)
+
+        with t_slides:
+            st.caption("Visual strategy blueprint for executive synthesis.")
+            if st.button("Generate 3-Slide Architecture", use_container_width=True):
+                deck_prompt = f"Create a 3-slide visual architecture grounded in: {curr_r['content']} for {st.session_state.profile['name']}"
+                with st.spinner("Drafting deck architecture..."):
+                    deck = generate_studio_text(deck_prompt)
+                    st.markdown(deck)
+
+    with col_right:
+        st.markdown("<div class='instruction-label'>Module Exercise & Defense Task</div>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px;">
+            <span style="font-weight: 700; color: #1e40af; font-size: 0.88rem;">🎯 Academic Milestone Objective:</span>
+            <div style="font-size: 0.88rem; color: #1e3a8a; margin-top: 4px; line-height: 1.45;">{active_mod['exercise']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("<div class='instruction-label'>Socratic Sparring Partner (Defense Chamber)</div>", unsafe_allow_html=True)
+        st.caption(f"Adversarial sparring grounded in Steinbeis curriculum. Limit: <{st.session_state.profile['working_memory_limit']} words.")
+
+        chat_container = st.container(height=360)
+        with chat_container:
+            for msg in st.session_state.messages:
+                with st.chat_message(msg["role"]):
+                    st.markdown(msg["content"])
+
+        sparring_input = st.chat_input("Defend your thesis or question assumptions...")
+
+        if sparring_input:
+            prof = st.session_state.profile
+            st.session_state.messages.append({"role": "user", "content": sparring_input})
+            with chat_container:
+                with st.chat_message("user"):
+                    st.markdown(sparring_input)
+
+                socratic_system = f"""
+You are the Socratic sparring partner inside NEAM for executive {prof['name']}.
+Evaluator: Prof. Dr. Mario Vaupel.
+MATERIAL: {st.session_state.active_reading['content']}
+EXERCISE: {active_mod['exercise']}
+
+RULES:
+1. Anti-Ghostwriting: Challenge assumptions, do not write the student's assignment.
+2. Max words: <{prof['working_memory_limit']}.
+3. Metaphors: {prof['passions']} and {prof['industry']}.
+4. Stance: {prof['stance']}. Incisive, intellectual, direct.
+"""
+                with st.chat_message("assistant"):
+                    reply_stream = stream_socratic_response(f"Student: {sparring_input}", socratic_system)
+                    reply = st.write_stream(reply_stream)
+                    st.session_state.messages.append({"role": "assistant", "content": reply})
+
+        st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+        if st.button("🏆 Submit Final Exercise Defense to Faculty", use_container_width=True):
+            if len(st.session_state.messages) < 2:
+                st.warning("⚠️ You must engage in at least one round of Socratic defense before final submission.")
+            else:
+                st.session_state.exercise_submitted = True
+                st.balloons()
+                st.success("🎉 Exercise Successfully Defended & Submitted! Crown of Executive Mastery Awarded.")
+                st.rerun()
+
+    # Footer Audit Log
+    st.markdown("<hr style='margin: 2.5rem 0 1rem 0; border: none; border-top: 1px solid #e2e8f0;'>", unsafe_allow_html=True)
+    col_f1, col_f2 = st.columns([2, 1])
+    with col_f1:
+        st.caption("NEAM • Neurodivergent Executive AI Module • Steinbeis University / Berlin School of Creative Leadership")
+    with col_f2:
+        audit_data = f"# NEAM Academic Audit Log\nStudent: {st.session_state.profile['name']}\nCompleted Resources: {len(st.session_state.completed_resources)}/3\nSubmitted: {st.session_state.exercise_submitted}\nDate: {datetime.datetime.now().isoformat()}"
+        st.download_button(
+            "📥 Export Proof-of-Work Audit Dossier",
+            data=audit_data,
+            file_name=f"NEAM_Audit_{st.session_state.profile['name']}.md",
+            mime="text/markdown",
+            use_container_width=True
+        )
