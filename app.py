@@ -15,7 +15,7 @@ except ImportError:
     HAS_PYPDF = False
 
 # ---------------------------------------------------------
-# Page Configuration & Clean Executive Light Theme
+# Page Configuration & Unified Deep Navy Executive Theme
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="NEAM | Executive Cognitive Scaffolding",
@@ -27,35 +27,118 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    /* Unified Deep Navy & Emerald Executive Palette (Matching Calibration Diagnostic) */
     .stApp {
-        background-color: #ffffff;
-        color: #0f172a;
+        background-color: #0d1526;
+        color: #f8fafc;
     }
     section[data-testid="stSidebar"] {
-        background-color: #f8fafc;
-        border-right: 1px solid #e2e8f0;
+        background-color: #111b2e;
+        border-right: 1px solid #263554;
     }
-    h1, h2, h3, h4, p, label, .stMarkdown {
-        color: #0f172a;
+    h1, h2, h3, h4, p, label, .stMarkdown, span, div {
+        color: #f8fafc;
     }
+    .stCaption, [data-testid="stCaptionContainer"] {
+        color: #94a3b8 !important;
+    }
+
+    /* Inputs, Textareas, Selectboxes & Expanders */
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="base-input"] > textarea,
+    div[data-baseweb="select"] > div {
+        background-color: #16243d !important;
+        border-color: #2d3f63 !important;
+        color: #f8fafc !important;
+        border-radius: 10px !important;
+    }
+    input, textarea {
+        color: #f8fafc !important;
+    }
+    ul[data-baseweb="menu"] {
+        background-color: #16243d !important;
+        border: 1px solid #2d3f63 !important;
+    }
+    ul[data-baseweb="menu"] li {
+        color: #f8fafc !important;
+    }
+    ul[data-baseweb="menu"] li:hover {
+        background-color: #1e3152 !important;
+    }
+    div[data-testid="stExpander"] {
+        background-color: #16243d !important;
+        border: 1px solid #263554 !important;
+        border-radius: 12px !important;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"] > div {
+        border-color: #263554 !important;
+        background-color: #131f36;
+        border-radius: 14px;
+    }
+
+    /* Buttons */
+    button[kind="primary"] {
+        background-color: #10b981 !important;
+        border-color: #10b981 !important;
+        color: #06281e !important;
+        font-weight: 700 !important;
+        border-radius: 10px !important;
+    }
+    button[kind="primary"]:hover {
+        background-color: #34d399 !important;
+        border-color: #34d399 !important;
+    }
+    button[kind="secondary"] {
+        background-color: #16243d !important;
+        border: 1px solid #2d3f63 !important;
+        color: #e2e8f0 !important;
+        border-radius: 10px !important;
+    }
+    button[kind="secondary"]:hover {
+        border-color: #34d399 !important;
+        color: #34d399 !important;
+    }
+
+    /* Tabs */
+    button[data-baseweb="tab"] {
+        color: #94a3b8 !important;
+        font-weight: 600 !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: #34d399 !important;
+        border-bottom-color: #34d399 !important;
+    }
+
+    /* Role Landing Cards */
     .role-card {
-        background: #f8fafc;
-        border: 2px solid #e2e8f0;
+        background: #16243d;
+        border: 1.5px solid #263554;
         border-radius: 16px;
         padding: 32px 24px;
         text-align: center;
         transition: all 0.2s ease;
-        box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.04);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
     }
     .role-card:hover {
-        border-color: #0284c7;
+        border-color: #34d399;
         transform: translateY(-2px);
-        box-shadow: 0 10px 15px -3px rgba(2, 132, 199, 0.1);
+        box-shadow: 0 14px 30px rgba(16, 185, 129, 0.14);
+    }
+
+    /* Eyebrow & Status Badges */
+    .eyebrow-green {
+        color: #34d399 !important;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
     }
     .badge-blue {
         display: inline-block;
-        background-color: #e0f2fe;
-        color: #0369a1;
+        background-color: rgba(56, 189, 248, 0.15);
+        border: 1px solid rgba(56, 189, 248, 0.35);
+        color: #38bdf8 !important;
         padding: 4px 12px;
         border-radius: 9999px;
         font-size: 0.75rem;
@@ -65,8 +148,9 @@ st.markdown(
     }
     .badge-green {
         display: inline-block;
-        background-color: #d1fae5;
-        color: #065f46;
+        background-color: rgba(16, 185, 129, 0.16);
+        border: 1px solid rgba(52, 211, 153, 0.4);
+        color: #34d399 !important;
         padding: 4px 12px;
         border-radius: 9999px;
         font-size: 0.75rem;
@@ -76,83 +160,77 @@ st.markdown(
     }
     .badge-amber {
         display: inline-block;
-        background-color: #fef3c7;
-        color: #b45309;
+        background-color: rgba(245, 158, 11, 0.18);
+        border: 1px solid rgba(251, 191, 36, 0.45);
+        color: #fbbf24 !important;
         padding: 3px 10px;
         border-radius: 9999px;
         font-size: 0.72rem;
         font-weight: 700;
         text-transform: uppercase;
     }
-    /* 5-Dimension Calibration Diagnostic Card */
+
+    /* 5-Dimension Calibration Diagnostic Shell */
     .diag-shell {
         background-color: #16243d;
-        color: #f8fafc;
+        border: 1px solid #263554;
         border-radius: 16px;
-        padding: 28px 32px;
-        margin-bottom: 20px;
-        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
-    }
-    .diag-shell h2, .diag-shell h3, .diag-shell h4, .diag-shell p, .diag-shell span {
-        color: #f8fafc !important;
-    }
-    .diag-eyebrow {
-        color: #34d399 !important;
-        font-size: 0.78rem;
-        font-weight: 800;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        margin-bottom: 4px;
+        padding: 26px 30px;
+        margin-bottom: 18px;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
     }
     .diag-pill-row {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin: 16px 0 20px 0;
-        padding-bottom: 14px;
-        border-bottom: 1px solid #334155;
+        margin: 16px 0 4px 0;
+        padding-top: 14px;
+        border-top: 1px solid #263554;
     }
     .diag-pill {
         padding: 6px 12px;
         border-radius: 8px;
         font-size: 0.8rem;
         font-weight: 600;
-        background-color: #1e293b;
+        background-color: #0f192d;
         color: #94a3b8 !important;
-        border: 1px solid #334155;
+        border: 1px solid #263554;
     }
     .diag-pill-active {
-        background-color: #059669 !important;
-        color: #ffffff !important;
-        border-color: #10b981 !important;
+        background-color: #10b981 !important;
+        color: #06281e !important;
+        border-color: #34d399 !important;
+        font-weight: 700 !important;
     }
+
+    /* Workspace Containers */
     .workspace-box {
-        background-color: #f8fafc;
-        border: 1px solid #cbd5e1;
-        border-left: 5px solid #0284c7;
-        border-radius: 10px;
+        background-color: #16243d;
+        border: 1px solid #263554;
+        border-left: 5px solid #38bdf8;
+        border-radius: 12px;
         padding: 16px 20px;
         margin-bottom: 12px;
     }
     .workspace-box-green {
-        background-color: #f0fdf4;
-        border: 1px solid #bbf7d0;
-        border-left: 5px solid #059669;
-        border-radius: 10px;
+        background-color: #132833;
+        border: 1px solid #1e4647;
+        border-left: 5px solid #10b981;
+        border-radius: 12px;
         padding: 16px 20px;
         margin-bottom: 12px;
     }
     .material-viewer-card {
-        background-color: #f8fafc;
-        border: 2px solid #0284c7;
+        background-color: #16243d;
+        border: 1.5px solid #38bdf8;
         border-radius: 12px;
         padding: 16px;
         margin-top: 8px;
         margin-bottom: 14px;
     }
     .thermo-wrap {
-        background: #f1f5f9;
-        border: 1px solid #cbd5e1;
+        background: #16243d;
+        border: 1px solid #263554;
         border-radius: 12px;
         padding: 12px 16px;
         margin-bottom: 16px;
@@ -160,50 +238,58 @@ st.markdown(
     .thermo-track {
         width: 100%;
         height: 14px;
-        background-color: #e2e8f0;
+        background-color: #0d1526;
         border-radius: 9999px;
         overflow: hidden;
         margin-top: 6px;
+        border: 1px solid #263554;
     }
     .slide-card {
-        background-color: #ffffff;
-        border: 1px solid #cbd5e1;
-        border-left: 5px solid #0284c7;
-        border-radius: 10px;
+        background-color: #16243d;
+        border: 1px solid #263554;
+        border-left: 5px solid #34d399;
+        border-radius: 12px;
         padding: 16px;
         margin-bottom: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
     }
     .dossier-card {
-        background-color: #f8fafc;
-        border: 1px solid #cbd5e1;
+        background-color: #16243d;
+        border: 1px solid #263554;
         border-radius: 12px;
         padding: 20px;
         margin-bottom: 14px;
     }
     .sparring-bubble-ai {
-        background-color: #ffffff;
-        border: 1px solid #cbd5e1;
-        border-left: 4px solid #0284c7;
+        background-color: #16243d;
+        border: 1px solid #263554;
+        border-left: 4px solid #38bdf8;
         border-radius: 8px;
         padding: 12px 14px;
         margin-bottom: 8px;
     }
     .sparring-bubble-student {
-        background-color: #f0fdf4;
-        border: 1px solid #bbf7d0;
-        border-left: 4px solid #059669;
+        background-color: #132833;
+        border: 1px solid #1e4647;
+        border-left: 4px solid #10b981;
         border-radius: 8px;
         padding: 12px 14px;
         margin-bottom: 8px;
     }
+
+    /* Chat Input */
     div[data-testid="stChatInput"] {
-        border-color: #cbd5e1 !important;
-        background-color: #ffffff !important;
+        border-color: #2d3f63 !important;
+        background-color: #16243d !important;
+        border-radius: 12px !important;
     }
     div[data-testid="stChatInput"]:focus-within {
-        border-color: #0284c7 !important;
-        box-shadow: 0 0 0 1px #0284c7 !important;
+        border-color: #34d399 !important;
+        box-shadow: 0 0 0 1px #34d399 !important;
+    }
+    div[data-testid="stChatInput"] textarea {
+        background-color: #16243d !important;
+        color: #f8fafc !important;
     }
     </style>
     """,
@@ -290,12 +376,11 @@ if "professor_profile" not in st.session_state:
         "title": "CEO & Professor of Sustainable Leadership • Steinbeis University Berlin",
     }
 
-# Empty clean-slate repositories ready for live course & material creation
 if "courses" not in st.session_state:
-    st.session_state.courses = {}  # {course_id: {"course_name": str, "code": str, "description": str, "lessons": {}, "materials_repo": []}}
+    st.session_state.courses = {}
 
 if "cohort_records" not in st.session_state:
-    st.session_state.cohort_records = {}  # Populated dynamically as student interacts/submits
+    st.session_state.cohort_records = {}
 
 if "selected_student_course_id" not in st.session_state:
     st.session_state.selected_student_course_id = None
@@ -337,6 +422,7 @@ if "material_slides_cache" not in st.session_state:
 # Sidebar: Engine Gateway
 # ---------------------------------------------------------
 with st.sidebar:
+    st.markdown("<div class='eyebrow-green'>NEAM CORE ENGINE</div>", unsafe_allow_html=True)
     st.markdown("### ⚙️ Engine Gateway")
     GOOGLE_API_KEY = st.text_input(
         "Google AI Studio Key",
@@ -355,7 +441,7 @@ with st.sidebar:
 
     if st.session_state.student_profile.get("onboarded"):
         st.divider()
-        st.markdown("#### 🧠 Active Student Profile")
+        st.markdown("<div class='eyebrow-green'>CALIBRATED PROFILE</div>", unsafe_allow_html=True)
         prof_s = st.session_state.student_profile
         st.caption(f"**Bandwidth:** {prof_s['working_memory'].split(':')[0]}")
         st.caption(f"**Channel:** {prof_s['sensory_channel'].split('(')[0].strip()}")
@@ -438,7 +524,7 @@ def compute_lesson_mastery(course: dict, lesson_id: str) -> Tuple[int, str]:
     ans_score = 30.0 if ans_data.get("submitted") else (15.0 if (has_text or has_files) else 0.0)
 
     total = min(int(round(mat_score + sprint_score + ans_score)), 100)
-    color = "#059669" if total == 100 else ("#0284c7" if total >= 50 else "#0ea5e9")
+    color = "#10b981" if total == 100 else ("#34d399" if total >= 50 else "#38bdf8")
     return total, color
 
 
@@ -609,10 +695,6 @@ def generate_single_material_podcast(
     eleven_key: str,
     progress_fn=None,
 ) -> Dict:
-    """
-    Scales podcast duration dynamically to ~1 minute per page (~140 spoken words/min).
-    For example: 1 page -> ~1 min (4-5 turns); 5 pages -> ~5 min (16-20 turns); 20 pages -> ~15-20 min.
-    """
     est_pages = estimate_material_pages(mat)
     target_minutes = min(max(est_pages, 1), 20)
     target_words = target_minutes * 140
@@ -786,14 +868,19 @@ LESSON MATERIALS:
 
 
 # =========================================================
-# 1. LANDING VIEW (STUDENT vs. PROFESSOR)
+# 1. LANDING VIEW (UNIFIED DEEP NAVY EXECUTIVE ARCHITECTURE)
 # =========================================================
 if st.session_state.current_role is None:
-    st.markdown("<h1 style='text-align: center; margin-top: 20px; color: #0f172a;'>NEAM</h1>", unsafe_allow_html=True)
     st.markdown(
-        "<p style='text-align: center; color: #475569; font-size: 1.1rem; margin-bottom: 32px;'>"
-        "Neurodivergent Executive AI Module & Closed-Loop Cognitive Scaffolding<br>"
-        "<b>Steinbeis University Berlin • Berlin School of Creative Leadership</b>"
+        "<div class='eyebrow-green' style='text-align: center; margin-top: 24px;'>"
+        "STEINBEIS UNIVERSITY BERLIN • BERLIN SCHOOL OF CREATIVE LEADERSHIP"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("<h1 style='text-align: center; margin-top: 4px; font-size: 3rem;'>NEAM</h1>", unsafe_allow_html=True)
+    st.markdown(
+        "<p style='text-align: center; color: #cbd5e1; font-size: 1.1rem; margin-bottom: 36px;'>"
+        "Neurodivergent Executive AI Module &amp; Closed-Loop Cognitive Scaffolding"
         "</p>",
         unsafe_allow_html=True,
     )
@@ -805,9 +892,9 @@ if st.session_state.current_role is None:
             """
             <div class="role-card">
                 <span class="badge-blue">Executive Candidate</span>
-                <div style="font-size: 3rem; margin: 8px 0;">🎓</div>
+                <div style="font-size: 3rem; margin: 10px 0;">🎓</div>
                 <h2 style="margin-bottom: 8px;">Student</h2>
-                <p style="color: #475569; font-size: 0.92rem;">
+                <p style="color: #cbd5e1; font-size: 0.92rem; line-height: 1.5;">
                     5-Dimension cognitive calibration, single-material multimodal transformation, micro-sprints, and Socratic sparring.
                 </p>
             </div>
@@ -823,11 +910,11 @@ if st.session_state.current_role is None:
         st.markdown(
             """
             <div class="role-card">
-                <span class="badge-green">Faculty & Curriculum</span>
-                <div style="font-size: 3rem; margin: 8px 0;">🏛️</div>
+                <span class="badge-green">Faculty &amp; Curriculum</span>
+                <div style="font-size: 3rem; margin: 10px 0;">🏛️</div>
                 <h2 style="margin-bottom: 8px;">Professor</h2>
-                <p style="color: #475569; font-size: 0.92rem;">
-                    Build courses & lessons, upload PDF/Video/YouTube materials, and evaluate student Proof-of-Work dossiers.
+                <p style="color: #cbd5e1; font-size: 0.92rem; line-height: 1.5;">
+                    Build courses &amp; lessons, upload PDF/Video/YouTube materials, and evaluate student Proof-of-Work dossiers.
                 </p>
             </div>
             """,
@@ -847,7 +934,6 @@ elif st.session_state.current_role == "student":
 
     # -----------------------------------------------------
     # 2A. ONE-TIME 5-DIMENSION COGNITIVE DIAGNOSTIC
-    # (Matching Your 5 Uploaded Screens)
     # -----------------------------------------------------
     if not profile["onboarded"]:
         if st.button("← Back to Landing", key="back_cal_landing"):
@@ -870,7 +956,7 @@ elif st.session_state.current_role == "student":
         st.markdown(
             f"""
             <div class="diag-shell">
-                <div class="diag-eyebrow">NEAM COGNITIVE ONBOARDING DIAGNOSTIC • PERSONALIZED SCAFFOLDING</div>
+                <div class="eyebrow-green">NEAM COGNITIVE ONBOARDING DIAGNOSTIC • PERSONALIZED SCAFFOLDING</div>
                 <h2 style="margin:0 0 6px 0;">Calibrate Your Executive Learning Engine</h2>
                 <p style="margin:0; font-size:0.95rem; color:#cbd5e1 !important;">
                     NEAM diagnoses your working memory limits and personal passions to tailor every podcast, slide deck, and Socratic challenge to your mental model.
@@ -1007,23 +1093,23 @@ elif st.session_state.current_role == "student":
                 st.session_state.current_role = None
                 st.rerun()
 
+        st.markdown("<div class='diag-shell' style='padding: 20px 26px;'>", unsafe_allow_html=True)
         h_avatar, h_info, h_cal = st.columns([0.7, 5, 1.5])
         with h_avatar:
             st.markdown(
-                "<div style='width:56px;height:56px;border-radius:50%;background:#0284c7;color:white;"
-                "display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:1.3rem;'>LG</div>",
+                "<div style='width:56px;height:56px;border-radius:50%;background:#10b981;color:#06281e;"
+                "display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.3rem;'>LG</div>",
                 unsafe_allow_html=True,
             )
         with h_info:
-            st.markdown(f"### {profile['name']}")
+            st.markdown(f"<h3 style='margin:0;'>{profile['name']}</h3>", unsafe_allow_html=True)
             st.caption(f"{profile['program']} • Calibrated Channel: **{profile['sensory_channel'].split('(')[0].strip()}**")
         with h_cal:
             if st.button("⚙️ Recalibrate", use_container_width=True):
                 st.session_state.student_profile["onboarded"] = False
                 st.session_state.calib_step = 1
                 st.rerun()
-
-        st.divider()
+        st.markdown("</div>", unsafe_allow_html=True)
 
         if not st.session_state.courses:
             st.info(
@@ -1105,12 +1191,12 @@ elif st.session_state.current_role == "student":
         top_av, top_title, top_thermo = st.columns([0.6, 3.8, 2.6])
         with top_av:
             st.markdown(
-                "<div style='width:50px;height:50px;border-radius:50%;background:#0284c7;color:white;"
-                "display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:1.15rem;'>LG</div>",
+                "<div style='width:50px;height:50px;border-radius:50%;background:#10b981;color:#06281e;"
+                "display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.15rem;'>LG</div>",
                 unsafe_allow_html=True,
             )
         with top_title:
-            st.caption(course["course_name"].upper())
+            st.markdown(f"<div class='eyebrow-green'>{course['course_name']}</div>", unsafe_allow_html=True)
             st.markdown(f"### {lesson['title']}")
         with top_thermo:
             status_emoji = "🏆" if pct == 100 else "🌡️"
@@ -1155,7 +1241,7 @@ elif st.session_state.current_role == "student":
                             st.write(open_mat["text"])
                     elif open_mat.get("file_bytes") and open_mat.get("mime_type") == "application/pdf":
                         b64_pdf = base64.b64encode(open_mat["file_bytes"]).decode("utf-8")
-                        pdf_iframe = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="560" type="application/pdf" style="border:1px solid #cbd5e1; border-radius:8px;"></iframe>'
+                        pdf_iframe = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="560" type="application/pdf" style="border:1px solid #263554; border-radius:8px;"></iframe>'
                         st.components.v1.html(pdf_iframe, height=575)
                         if open_mat.get("text"):
                             with st.expander("View Extracted PDF Text"):
@@ -1163,7 +1249,7 @@ elif st.session_state.current_role == "student":
                     else:
                         st.markdown(
                             f"""
-                            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:20px; font-size:1rem; line-height:1.6;">
+                            <div style="background:#16243d; border:1px solid #263554; border-radius:8px; padding:20px; font-size:1rem; line-height:1.6; color:#f8fafc;">
                                 {open_mat.get('text', '')}
                             </div>
                             """,
@@ -1316,13 +1402,13 @@ elif st.session_state.current_role == "student":
                         if pod.get("bytes"):
                             b64 = base64.b64encode(pod["bytes"]).decode("utf-8")
                             player_html = f"""
-                            <div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #cbd5e1;">
+                            <div style="background:#16243d; padding:12px; border-radius:10px; border:1px solid #263554;">
                                 <audio id="podPlayer" controls style="width:100%;">
                                     <source src="data:audio/mp3;base64,{b64}" type="audio/mpeg">
                                 </audio>
                                 <div style="margin-top:8px; display:flex; gap:8px;">
-                                    <button onclick="document.getElementById('podPlayer').currentTime -= 10;" style="background:#0284c7; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">⏪ -10s</button>
-                                    <button onclick="document.getElementById('podPlayer').currentTime += 10;" style="background:#0284c7; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">+10s ⏩</button>
+                                    <button onclick="document.getElementById('podPlayer').currentTime -= 10;" style="background:#10b981; color:#06281e; font-weight:700; border:none; padding:5px 12px; border-radius:6px; cursor:pointer;">⏪ -10s</button>
+                                    <button onclick="document.getElementById('podPlayer').currentTime += 10;" style="background:#10b981; color:#06281e; font-weight:700; border:none; padding:5px 12px; border-radius:6px; cursor:pointer;">+10s ⏩</button>
                                 </div>
                             </div>
                             """
@@ -1331,9 +1417,9 @@ elif st.session_state.current_role == "student":
                             full_dialogue = " ".join([f"{t['speaker'].replace('_', ' ')} says: {t['text']}" for t in pod["script"]])
                             safe_text = json.dumps(full_dialogue)
                             tts_html = f"""
-                            <div style="background:#f0fdf4; padding:12px; border-radius:8px; border:1px solid #bbf7d0;">
-                                <button onclick="window.speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance({safe_text}); u.rate=1.02; window.speechSynthesis.speak(u);" style="background:#059669; color:white; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; font-weight:600;">▶️ Play Dialogue Audio</button>
-                                <button onclick="window.speechSynthesis.cancel();" style="background:#e2e8f0; color:#0f172a; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; margin-left:6px;">⏹️ Stop</button>
+                            <div style="background:#16243d; padding:12px; border-radius:10px; border:1px solid #263554;">
+                                <button onclick="window.speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance({safe_text}); u.rate=1.02; window.speechSynthesis.speak(u);" style="background:#10b981; color:#06281e; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; font-weight:700;">▶️ Play Dialogue Audio</button>
+                                <button onclick="window.speechSynthesis.cancel();" style="background:#263554; color:#f8fafc; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; margin-left:6px;">⏹️ Stop</button>
                             </div>
                             """
                             st.components.v1.html(tts_html, height=65)
@@ -1359,11 +1445,11 @@ elif st.session_state.current_role == "student":
                         st.markdown(
                             f"""
                             <div class="slide-card">
-                                <span style="color:#0284c7; font-size:0.75rem; font-weight:700;">SLIDE {idx_s} • {s['pillar']}</span>
+                                <span style="color:#34d399; font-size:0.75rem; font-weight:700;">SLIDE {idx_s} • {s['pillar']}</span>
                                 <h4 style="margin:4px 0 6px 0;">{s['title']}</h4>
-                                <p style="color:#059669; font-weight:600; font-size:0.9rem;">{s['takeaway']}</p>
-                                <ul style="font-size:0.88rem; color:#334155;">{bullets_html}</ul>
-                                <div style="font-size:0.85rem; color:#0369a1; font-style:italic; border-top:1px dashed #cbd5e1; padding-top:6px;">
+                                <p style="color:#38bdf8; font-weight:600; font-size:0.9rem;">{s['takeaway']}</p>
+                                <ul style="font-size:0.88rem; color:#cbd5e1;">{bullets_html}</ul>
+                                <div style="font-size:0.85rem; color:#34d399; font-style:italic; border-top:1px dashed #2d3f63; padding-top:6px;">
                                     🥊 {s['question']}
                                 </div>
                             </div>
@@ -1379,7 +1465,7 @@ elif st.session_state.current_role == "student":
                 f"""
                 <div class="workspace-box">
                     <span class="badge-blue">1 • Task for the Lesson</span>
-                    <p style="margin:6px 0 0 0; font-size:0.98rem; color:#0f172a;">{lesson['task']}</p>
+                    <p style="margin:6px 0 0 0; font-size:0.98rem; color:#f8fafc;">{lesson['task']}</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1408,8 +1494,8 @@ elif st.session_state.current_role == "student":
             st.markdown(
                 """
                 <div class="workspace-box-green">
-                    <span class="badge-green">2 • Lesson Answer Space & Deliverable Upload</span>
-                    <p style="margin:2px 0 0 0; font-size:0.88rem; color:#334155;">
+                    <span class="badge-green">2 • Lesson Answer Space &amp; Deliverable Upload</span>
+                    <p style="margin:2px 0 0 0; font-size:0.88rem; color:#cbd5e1;">
                         Write your executive response and/or attach supporting visuals, diagrams, or PDFs (JPG, PNG, PDF, DOCX).
                     </p>
                 </div>
@@ -1484,7 +1570,7 @@ elif st.session_state.current_role == "student":
                 """
                 <div class="workspace-box">
                     <span class="badge-blue">3 • Socratic Sparring Box (Closed-Loop)</span>
-                    <p style="margin:2px 0 0 0; font-size:0.88rem; color:#334155;">
+                    <p style="margin:2px 0 0 0; font-size:0.88rem; color:#cbd5e1;">
                         Grounded strictly in this lesson's uploaded materials. Anti-ghostwriting active.
                     </p>
                 </div>
@@ -1521,7 +1607,7 @@ elif st.session_state.current_role == "student":
 
 
 # =========================================================
-# 3. PROFESSOR WORKSPACE (CLEAN SLATE COURSE & LESSON BUILDER)
+# 3. PROFESSOR WORKSPACE
 # =========================================================
 elif st.session_state.current_role == "professor":
     prof = st.session_state.professor_profile
@@ -1531,10 +1617,16 @@ elif st.session_state.current_role == "professor":
             st.session_state.current_role = None
             st.rerun()
 
-        st.markdown("<span class='badge-green'>Professor Workspace</span>", unsafe_allow_html=True)
-        st.markdown(f"## {prof['name']}")
-        st.caption(prof["title"])
-        st.divider()
+        st.markdown(
+            f"""
+            <div class="diag-shell" style="padding: 22px 28px;">
+                <div class="eyebrow-green">FACULTY COMMAND CENTER • STEINBEIS UNIVERSITY BERLIN</div>
+                <h2 style="margin:2px 0 4px 0;">{prof['name']}</h2>
+                <p style="margin:0; color:#cbd5e1 !important; font-size:0.95rem;">{prof['title']}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         hdr_c, btn_c = st.columns([4, 1.6])
         with hdr_c:
@@ -1610,7 +1702,6 @@ elif st.session_state.current_role == "professor":
         with tab_builder:
             col_lessons, col_materials = st.columns([1.25, 1.45], gap="large")
 
-            # LEFT COLUMN: COURSE'S LESSONS (+ ADD NEW LESSON)
             with col_lessons:
                 lh1, lh2 = st.columns([3, 1.6])
                 with lh1:
@@ -1661,7 +1752,6 @@ elif st.session_state.current_role == "professor":
                                     st.success("Task updated!")
                                     st.rerun()
 
-            # RIGHT COLUMN: COURSE'S MATERIALS (+ UPLOAD PDF / VIDEO / YOUTUBE / TEXT)
             with col_materials:
                 hdr_m, btn_m = st.columns([3, 1.6])
                 with hdr_m:
@@ -1806,9 +1896,9 @@ elif st.session_state.current_role == "professor":
                         needs_eval = stu.get("submitted") and not stu.get("evaluated")
                         is_selected = st.session_state.selected_audit_student_id == sid
 
-                        border_color = "#f59e0b" if needs_eval else ("#0284c7" if is_selected else "#e2e8f0")
-                        bg_color = "#fffbeb" if needs_eval else ("#f0f9ff" if is_selected else "#ffffff")
-                        bar_col = "#059669" if stu["mastery_pct"] == 100 else "#0284c7"
+                        border_color = "#fbbf24" if needs_eval else ("#34d399" if is_selected else "#263554")
+                        bg_color = "#262115" if needs_eval else ("#1a2d4a" if is_selected else "#16243d")
+                        bar_col = "#10b981" if stu["mastery_pct"] == 100 else "#38bdf8"
 
                         status_badge = (
                             "<span class='badge-amber'>🔔 Needs Evaluation</span>"
@@ -1821,24 +1911,24 @@ elif st.session_state.current_role == "professor":
                             <div style="background:{bg_color}; border:2px solid {border_color}; border-radius:12px; padding:12px 14px; margin-bottom:8px;">
                                 <div style="display:flex; align-items:center; justify-content:space-between;">
                                     <div style="display:flex; align-items:center; gap:10px;">
-                                        <div style="width:36px; height:36px; border-radius:50%; background:#0284c7; color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.85rem;">
+                                        <div style="width:36px; height:36px; border-radius:50%; background:#10b981; color:#06281e; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.85rem;">
                                             {stu['initials']}
                                         </div>
                                         <div>
-                                            <div style="font-weight:700; color:#0f172a; font-size:0.95rem;">{stu['name']}</div>
-                                            <div style="font-size:0.75rem; color:#475569;">{stu['lesson_title']} • {stu['mastery_pct']}%</div>
+                                            <div style="font-weight:700; color:#f8fafc; font-size:0.95rem;">{stu['name']}</div>
+                                            <div style="font-size:0.75rem; color:#94a3b8;">{stu['lesson_title']} • {stu['mastery_pct']}%</div>
                                         </div>
                                     </div>
                                     {status_badge}
                                 </div>
-                                <div style="width:100%; height:8px; background:#e2e8f0; border-radius:9999px; overflow:hidden; margin-top:8px;">
+                                <div style="width:100%; height:8px; background:#0d1526; border-radius:9999px; overflow:hidden; margin-top:8px;">
                                     <div style="width:{stu['mastery_pct']}%; height:100%; background:{bar_col};"></div>
                                 </div>
                             </div>
                             """,
                             unsafe_allow_html=True,
                         )
-                        if st.button(f"Inspect Dossier →", key=f"sel_stu_{sid}", use_container_width=True):
+                        if st.button("Inspect Dossier →", key=f"sel_stu_{sid}", use_container_width=True):
                             st.session_state.selected_audit_student_id = sid
                             st.rerun()
 
@@ -1862,7 +1952,7 @@ elif st.session_state.current_role == "professor":
 
                     dh1, dh2 = st.columns([3.5, 1.5])
                     with dh1:
-                        st.caption(f"PROOF-OF-WORK VERIFICATION • `{stu['hash']}`")
+                        st.markdown(f"<div class='eyebrow-green'>PROOF-OF-WORK VERIFICATION • {stu['hash']}</div>", unsafe_allow_html=True)
                         st.markdown(f"### {stu['name']} — {stu['lesson_title']}")
                         st.caption(f"{course['course_name']} • {stu['submitted_at']}")
                     with dh2:
@@ -1878,11 +1968,11 @@ elif st.session_state.current_role == "professor":
                     st.markdown(
                         f"""
                         <div class="dossier-card">
-                            <div style="display:flex; justify-content:space-between; font-size:0.78rem; font-weight:700; color:#475569; margin-bottom:6px;">
+                            <div style="display:flex; justify-content:space-between; font-size:0.78rem; font-weight:700; color:#94a3b8; margin-bottom:6px;">
                                 <span>1. STUDENT'S FINAL SUBMITTED ANSWER</span>
                                 <span>{len(stu.get('answer_text', ''))} characters</span>
                             </div>
-                            <p style="margin:0; font-size:0.95rem; color:#0f172a;">{stu.get('answer_text') or 'No answer submitted yet.'}</p>
+                            <p style="margin:0; font-size:0.95rem; color:#f8fafc;">{stu.get('answer_text') or 'No answer submitted yet.'}</p>
                         </div>
                         """,
                         unsafe_allow_html=True,
@@ -1914,11 +2004,11 @@ elif st.session_state.current_role == "professor":
                                 st.markdown(
                                     f"""
                                     <div class="sparring-bubble-ai">
-                                        <div style="display:flex; justify-content:space-between; font-size:0.78rem; font-weight:700; color:#0369a1;">
+                                        <div style="display:flex; justify-content:space-between; font-size:0.78rem; font-weight:700; color:#38bdf8;">
                                             <span>NEAM AI Sparring Partner</span>
                                             <span>{turn.get('time', '')}</span>
                                         </div>
-                                        <div style="font-size:0.9rem; margin-top:4px;">{turn['content']}</div>
+                                        <div style="font-size:0.9rem; margin-top:4px; color:#f8fafc;">{turn['content']}</div>
                                     </div>
                                     """,
                                     unsafe_allow_html=True,
@@ -1927,11 +2017,11 @@ elif st.session_state.current_role == "professor":
                                 st.markdown(
                                     f"""
                                     <div class="sparring-bubble-student">
-                                        <div style="display:flex; justify-content:space-between; font-size:0.78rem; font-weight:700; color:#065f46;">
+                                        <div style="display:flex; justify-content:space-between; font-size:0.78rem; font-weight:700; color:#34d399;">
                                             <span>{stu['name']}</span>
                                             <span>{turn.get('time', '')}</span>
                                         </div>
-                                        <div style="font-size:0.9rem; margin-top:4px;">{turn['content']}</div>
+                                        <div style="font-size:0.9rem; margin-top:4px; color:#f8fafc;">{turn['content']}</div>
                                     </div>
                                     """,
                                     unsafe_allow_html=True,
@@ -1953,9 +2043,9 @@ elif st.session_state.current_role == "professor":
                     composite = round((s_prob + s_theo + s_strat) / 3.0, 2)
                     st.markdown(
                         f"""
-                        <div style="display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 16px; border-radius:8px; margin:8px 0;">
-                            <span style="font-weight:700; color:#065f46;">⚖️ FACULTY RUBRIC GRADING CONSOLE</span>
-                            <span style="font-weight:800; font-size:1.1rem; color:#059669;">Composite: {composite:.2f} / 5.0</span>
+                        <div style="display:flex; justify-content:space-between; align-items:center; background:#132833; border:1px solid #1e4647; padding:12px 16px; border-radius:10px; margin:8px 0;">
+                            <span style="font-weight:700; color:#34d399;">⚖️ FACULTY RUBRIC GRADING CONSOLE</span>
+                            <span style="font-weight:800; font-size:1.1rem; color:#10b981;">Composite: {composite:.2f} / 5.0</span>
                         </div>
                         """,
                         unsafe_allow_html=True,
