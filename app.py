@@ -77,7 +77,47 @@ VOICE_HOST_B = "pNInz6obpgDQGcFmaJgB"  # Adam (First-Principles Host)
 # Dynamic Model Discovery (Eliminates 404 Model Errors)
 # ---------------------------------------------------------
 @st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def get_available_gemini_models(api_key: str) -> List[str]:
+    """Queries ListModels and prioritizes standard Flash models (excluding omni/experimental)."""
+    fallback_order = [
+        "models/gemini-3.8-flash",
+        "models/gemini-3.5-flash",
+        "models/gemini-3.0-flash",
+        "models/gemini-2.5-flash",
+    ]
+    if not api_key:
+        return fallback_order
+
+    try:
+        resp = requests.get(
+            f"{BASE_GEMINI_URL}/models",
+            headers={"x-goog-api-key": api_key.strip()},
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            models_data = resp.json().get("models", [])
+            valid_flash = []
+            valid_other = []
+            for m in models_data:
+                name = m.get("name", "")
+                methods = m.get("supportedGenerationMethods", [])
+                if "generateContent" in methods and "gemini" in name:
+                    if any(skip in name for skip in ["embedding", "imagen", "veo", "aqa", "tts", "audio", "omni", "robotics", "computer-use"]):
+                        continue
+                    if "flash" in name and "lite" not in name:
+                        valid_flash.append(name)
+                    elif "pro" in name:
+                        valid_other.append(name)
+            valid_flash.sort(reverse=True)
+            valid_other.sort(reverse=True)
+            combined = valid_flash + valid_other
+            if combined:
+                return combined
+    except Exception:
+        pass
+
+    return fallback_order
     """Queries ListModels with the user's API key to find active generateContent models."""
     fallback_order = [
         "models/gemini-3.8-flash",
