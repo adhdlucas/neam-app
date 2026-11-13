@@ -84,6 +84,48 @@ st.markdown(
         font-weight: 700;
         text-transform: uppercase;
     }
+    /* 5-Dimension Calibration Diagnostic Card */
+    .diag-shell {
+        background-color: #16243d;
+        color: #f8fafc;
+        border-radius: 16px;
+        padding: 28px 32px;
+        margin-bottom: 20px;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+    }
+    .diag-shell h2, .diag-shell h3, .diag-shell h4, .diag-shell p, .diag-shell span {
+        color: #f8fafc !important;
+    }
+    .diag-eyebrow {
+        color: #34d399 !important;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+    .diag-pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 16px 0 20px 0;
+        padding-bottom: 14px;
+        border-bottom: 1px solid #334155;
+    }
+    .diag-pill {
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        background-color: #1e293b;
+        color: #94a3b8 !important;
+        border: 1px solid #334155;
+    }
+    .diag-pill-active {
+        background-color: #059669 !important;
+        color: #ffffff !important;
+        border-color: #10b981 !important;
+    }
     .workspace-box {
         background-color: #f8fafc;
         border: 1px solid #cbd5e1;
@@ -184,10 +226,48 @@ VOICE_HOST_A = "EXAVITQu4vr4xnSDxMaL"  # Sarah (Default Premade)
 VOICE_HOST_B = "JBFqnCBsd6RMkjVDRZzb"  # George (Default Premade)
 
 # ---------------------------------------------------------
-# Session State & Multi-Course Data Model
+# Calibration Dimensions Catalog (Matching Your 5 Screens)
+# ---------------------------------------------------------
+DIM1_OPTIONS = [
+    "Severe linear fatigue: Focus dissolves within 8–10 pages. (Enforces strict <130-word chunking).",
+    "Moderate linear tolerance: Focus fades around page 20 without visual landmarks. (Caps at <175 words).",
+    "High endurance if text is well-structured with executive takeaways. (Standard length).",
+]
+
+DIM2_OPTIONS = [
+    "Listening on a walk / commute (Conversational Podcast Brief)",
+    "Viewing visual diagrams & strategic slide canvases",
+    "Talking out loud in real-time Socratic debate",
+]
+
+DIM3_OPTIONS = [
+    "Blank-page paralysis: Starting the initial draft feels like an immovable barrier.",
+    "Mid-stream organization: Brainstorming is fine, but sequencing into academic models is hard.",
+    "Defensibility pressure: Starting is easy; the challenge is defending against scrutiny.",
+]
+
+DIM4_OPTIONS = [
+    "Contrarian Devil's Advocate (Board-Level Counter-Interrogation)",
+    "Encouraging Executive Coach (Supportive Socratic Guidance)",
+]
+
+DIM5_INTEREST_CATEGORIES = [
+    "Video Games & Interactive Media (e.g. Nintendo Blue Ocean vs Sony/Xbox console wars)",
+    "Music & Audio Production (e.g. Modular synthesizers disrupting digital audio software)",
+    "Cinema, Sci-Fi & Screenwriting (e.g. Streaming unbundling Hollywood studio monopolies)",
+    "Technology, AI & Startups (e.g. Disruptive SaaS displacing enterprise ERP monoliths)",
+    "Architecture, Design & Fashion (e.g. Bauhaus and Scandinavian minimalism breaking cost-luxury trade-offs)",
+    "High-Performance Sports & Racing (e.g. Formula 1 telemetry optimization and pitstop agility)",
+]
+
+# ---------------------------------------------------------
+# Clean-Slate Session State (Zero Pre-Populated Dummy Data)
 # ---------------------------------------------------------
 if "current_role" not in st.session_state:
     st.session_state.current_role = None
+
+if "calib_step" not in st.session_state:
+    st.session_state.calib_step = 1
 
 if "student_profile" not in st.session_state:
     st.session_state.student_profile = {
@@ -196,10 +276,12 @@ if "student_profile" not in st.session_state:
         "initials": "LG",
         "program": "Executive MBA in Creative Leadership",
         "onboarded": False,
-        "working_memory_chunking": True,
-        "primary_modality": "Audio-First (Executive Podcast)",
-        "task_initiation_scaffolding": True,
-        "sparring_intensity": "Contrarian Devil's Advocate (Rigor)",
+        "working_memory": DIM1_OPTIONS[0],
+        "sensory_channel": DIM2_OPTIONS[0],
+        "task_initiation": DIM3_OPTIONS[1],
+        "sparring_tone": DIM4_OPTIONS[0],
+        "interest_domains": [DIM5_INTEREST_CATEGORIES[4]],
+        "custom_passions": "",
     }
 
 if "professor_profile" not in st.session_state:
@@ -208,14 +290,21 @@ if "professor_profile" not in st.session_state:
         "title": "CEO & Professor of Sustainable Leadership • Steinbeis University Berlin",
     }
 
+# Empty clean-slate repositories ready for live course & material creation
+if "courses" not in st.session_state:
+    st.session_state.courses = {}  # {course_id: {"course_name": str, "code": str, "description": str, "lessons": {}, "materials_repo": []}}
+
+if "cohort_records" not in st.session_state:
+    st.session_state.cohort_records = {}  # Populated dynamically as student interacts/submits
+
 if "selected_student_course_id" not in st.session_state:
-    st.session_state.selected_student_course_id = "CRS-01"
+    st.session_state.selected_student_course_id = None
 
 if "selected_lesson_id" not in st.session_state:
     st.session_state.selected_lesson_id = None
 
 if "selected_material_by_lesson" not in st.session_state:
-    st.session_state.selected_material_by_lesson = {}  # {lesson_id: material_id}
+    st.session_state.selected_material_by_lesson = {}
 
 if "open_full_reader_mat_id" not in st.session_state:
     st.session_state.open_full_reader_mat_id = None
@@ -224,240 +313,7 @@ if "selected_prof_course_id" not in st.session_state:
     st.session_state.selected_prof_course_id = None
 
 if "selected_audit_student_id" not in st.session_state:
-    st.session_state.selected_audit_student_id = "STU-ELENA"
-
-if "courses" not in st.session_state:
-    st.session_state.courses = {
-        "CRS-01": {
-            "course_name": "Strategic Alignment & Creative Leadership",
-            "code": "EMBA-601",
-            "description": "Value Innovation, Blue Ocean Strategy, and Creating Shared Value (CSV) for executive transformation.",
-            "lessons": {
-                "LES-01": {
-                    "title": "Lesson 1: Value Innovation & Blue Ocean Strategy",
-                    "summary": "Breaking the value-cost trade-off using the Strategy Canvas and the Four Actions Framework (ERRC Grid).",
-                    "task": (
-                        "Identify one entrenched industry assumption in your executive domain. Using the Four Actions Framework "
-                        "(Eliminate, Reduce, Raise, Create), formulate a strategic thesis explaining how eliminating that factor "
-                        "lowers cost structure while unlocking uncontested buyer value."
-                    ),
-                },
-                "LES-02": {
-                    "title": "Lesson 2: Creating Shared Value (CSV) & Sustainable Leadership",
-                    "summary": "Reconnecting company success with social progress beyond traditional CSR philanthropy.",
-                    "task": (
-                        "Contrast Corporate Social Responsibility (CSR) with Porter & Kramer's Creating Shared Value (CSV). "
-                        "Propose one value-chain reconception in your organization that generates measurable economic profit "
-                        "directly through solving a societal or environmental bottleneck."
-                    ),
-                },
-            },
-            "materials_repo": [
-                {
-                    "id": "MAT-101",
-                    "title": "Blue Ocean Strategy — Value Innovation Core (Kim & Mauborgne)",
-                    "type": "Text / Reading",
-                    "filename": "Blue_Ocean_Value_Innovation.txt",
-                    "assigned_lessons": ["LES-01"],
-                    "text": (
-                        "Blue Ocean Strategy challenges companies to break out of red oceans of bloody competition "
-                        "by creating uncontested market space that makes the competition irrelevant. Instead of choosing "
-                        "between low cost and high differentiation, Value Innovation pursues both simultaneously. "
-                        "Value innovation is created in the region where a company's actions favorably affect both its cost structure "
-                        "and its value proposition to buyers. Cost savings are made by eliminating and reducing the factors an industry competes on. "
-                        "Buyer value is lifted by raising and creating elements the industry has never offered."
-                    ),
-                    "file_bytes": None,
-                    "mime_type": "text/plain",
-                    "youtube_url": None,
-                },
-                {
-                    "id": "MAT-103",
-                    "title": "Executive Education Red Ocean Case",
-                    "type": "Text / Reading",
-                    "filename": "Executive_Education_Case.txt",
-                    "assigned_lessons": ["LES-01"],
-                    "text": (
-                        "In executive education, traditional monomodal lecturing represents a high-overhead red ocean "
-                        "that creates cognitive overload for neurodivergent leaders. Long static PDFs and passive slide decks "
-                        "force working-memory bottlenecks. Closed-loop multimodal scaffolding eliminates passive friction "
-                        "by letting executives isolate single artifacts, listen via conversational audio, and test ideas via active dialectic proof-of-work."
-                    ),
-                    "file_bytes": None,
-                    "mime_type": "text/plain",
-                    "youtube_url": None,
-                },
-                {
-                    "id": "MAT-102",
-                    "title": "Four Actions Framework (ERRC Diagnostic Grid)",
-                    "type": "Text / Reading",
-                    "filename": "ERRC_Framework_Guide.txt",
-                    "assigned_lessons": ["LES-01"],
-                    "text": (
-                        "The Four Actions Framework asks four key questions to challenge an industry's strategic logic: "
-                        "1) Which factors that the industry takes for granted should be Eliminated? "
-                        "2) Which factors should be Reduced well below the industry standard? "
-                        "3) Which factors should be Raised well above the industry standard? "
-                        "4) Which factors should be Created that the industry has never offered? "
-                        "The ERRC Grid pushes companies not only to ask all four questions but also to act on all four to create a new value curve."
-                    ),
-                    "file_bytes": None,
-                    "mime_type": "text/plain",
-                    "youtube_url": None,
-                },
-                {
-                    "id": "MAT-104",
-                    "title": "Kim & Mauborgne — Blue Ocean Strategy Keynote (YouTube)",
-                    "type": "YouTube Video",
-                    "filename": None,
-                    "assigned_lessons": ["LES-01"],
-                    "text": (
-                        "Video Lecture Summary: W. Chan Kim and Renée Mauborgne explain how organizations reconstruct "
-                        "market boundaries using the Strategy Canvas and ERRC Grid to unlock non-customers instead of fighting over shrinking market share."
-                    ),
-                    "file_bytes": None,
-                    "mime_type": None,
-                    "youtube_url": "https://www.youtube.com/results?search_query=Blue+Ocean+Strategy+Kim+Mauborgne",
-                },
-                {
-                    "id": "MAT-201",
-                    "title": "Shared Value Foundation (Porter & Kramer)",
-                    "type": "Text / Reading",
-                    "filename": "Porter_Kramer_CSV.txt",
-                    "assigned_lessons": ["LES-02"],
-                    "text": (
-                        "Creating Shared Value (CSV) focuses on policies and operating practices that enhance the competitiveness "
-                        "of a company while simultaneously advancing the economic and social conditions in the communities in which "
-                        "it operates. Unlike CSR, which is peripheral and driven by reputation, CSV is integral to profitability."
-                    ),
-                    "file_bytes": None,
-                    "mime_type": "text/plain",
-                    "youtube_url": None,
-                },
-                {
-                    "id": "MAT-202",
-                    "title": "Three Pillars of Shared Value Execution",
-                    "type": "Text / Reading",
-                    "filename": "Three_Pillars_CSV.txt",
-                    "assigned_lessons": ["LES-02"],
-                    "text": (
-                        "Companies can create shared value in three distinct ways: 1) Reconceiving products and markets to meet "
-                        "underserved societal needs; 2) Redefining productivity in the value chain (energy use, logistics, resource efficiency); "
-                        "and 3) Enabling local cluster development around the company's operational hubs."
-                    ),
-                    "file_bytes": None,
-                    "mime_type": "text/plain",
-                    "youtube_url": None,
-                },
-            ],
-        },
-        "CRS-02": {
-            "course_name": "Organizational Transformation & Creative Governance",
-            "code": "EMBA-604",
-            "description": "Leading creative teams, neuroinclusive organizational design, and change management.",
-            "lessons": {
-                "LES-201": {
-                    "title": "Lesson 1: Neuroinclusive Executive Architecture",
-                    "summary": "Designing high-autonomy workflows that leverage divergent cognitive styles.",
-                    "task": (
-                        "Audit one recurring decision workflow in your organization and propose two structural redesigns "
-                        "that eliminate working-memory bottlenecks while preserving strategic accountability."
-                    ),
-                },
-            },
-            "materials_repo": [
-                {
-                    "id": "MAT-301",
-                    "title": "Cognitive Load & Executive Decision Architecture",
-                    "type": "Text / Reading",
-                    "filename": "Cognitive_Load_Governance.txt",
-                    "assigned_lessons": ["LES-201"],
-                    "text": (
-                        "High-performing organizations reduce extraneous cognitive load by chunking complex strategic briefs "
-                        "into clear milestones, multimodal summaries, and structured dialectic checkpoints."
-                    ),
-                    "file_bytes": None,
-                    "mime_type": "text/plain",
-                    "youtube_url": None,
-                },
-            ],
-        },
-    }
-
-if "cohort_records" not in st.session_state:
-    st.session_state.cohort_records = {
-        "STU-ELENA": {
-            "name": "Elena Vance",
-            "initials": "EV",
-            "course_id": "CRS-01",
-            "lesson_id": "LES-01",
-            "lesson_title": "Lesson 1: Value Innovation & Blue Ocean Strategy",
-            "mastery_pct": 100,
-            "submitted": True,
-            "evaluated": False,
-            "submitted_at": "Yesterday at 17:30 CET",
-            "hash": "NEAM-BSCL-ELENA-4871-SHA256",
-            "answer_text": (
-                "Creative agencies must transition from hourly retainer gatekeeping to an internal venture incubator. "
-                "By eliminating billable-hour timesheets and raising equity-aligned co-creation, firms unlock non-consuming "
-                "growth startups without traditional margin erosion."
-            ),
-            "attachments": [],
-            "voice_notes": [
-                {
-                    "label": "Voice Note 01 (1m 02s)",
-                    "time": "Yesterday at 16:50 CET",
-                    "transcript": "Large agencies fail because internal systems reward sustaining work for safe retainers. We need an autonomous unit incentivized on disruptive footholds.",
-                }
-            ],
-            "sparring_dialogue": [
-                {
-                    "role": "model",
-                    "time": "17:05",
-                    "content": "How does your proposed venture incubator avoid cannibalizing the agency's cash-cow retainer accounts?",
-                },
-                {
-                    "role": "user",
-                    "time": "17:15",
-                    "content": "It operates on asymmetric motivation: targeting non-consumers and seed-stage startups that legacy retainers reject as too small.",
-                },
-            ],
-            "rubric": {
-                "problem_clarification": 5.0,
-                "theoretical_grounding": 3.4,
-                "strategic_defensibility": 4.8,
-                "feedback": "",
-            },
-        },
-        "STU-MARCUS": {
-            "name": "Marcus Sterling",
-            "initials": "MS",
-            "course_id": "CRS-01",
-            "lesson_id": "LES-01",
-            "lesson_title": "Lesson 1: Value Innovation & Blue Ocean Strategy",
-            "mastery_pct": 65,
-            "submitted": False,
-            "evaluated": False,
-            "submitted_at": "In Progress",
-            "hash": "NEAM-BSCL-MARCUS-9104-SHA256",
-            "answer_text": "Drafting initial ERRC matrix for mid-market industrial logistics...",
-            "attachments": [],
-            "voice_notes": [],
-            "sparring_dialogue": [
-                {
-                    "role": "model",
-                    "time": "09:40",
-                    "content": "Which specific cost factor are you eliminating that competitors treat as non-negotiable?",
-                }
-            ],
-            "rubric": {
-                "problem_clarification": 3.5,
-                "theoretical_grounding": 3.5,
-                "strategic_defensibility": 3.5,
-                "feedback": "",
-            },
-        },
-    }
+    st.session_state.selected_audit_student_id = None
 
 if "reviewed_materials" not in st.session_state:
     st.session_state.reviewed_materials = {}
@@ -471,12 +327,11 @@ if "lesson_answers" not in st.session_state:
 if "lesson_sparring" not in st.session_state:
     st.session_state.lesson_sparring = {}
 
-# Per-material caches so each single material has its own dedicated Podcast & Slide Deck
 if "material_podcast_cache" not in st.session_state:
-    st.session_state.material_podcast_cache = {}  # {material_id: {"bytes": ..., "script": ..., "warning": ...}}
+    st.session_state.material_podcast_cache = {}
 
 if "material_slides_cache" not in st.session_state:
-    st.session_state.material_slides_cache = {}  # {material_id: list_of_slides}
+    st.session_state.material_slides_cache = {}
 
 # ---------------------------------------------------------
 # Sidebar: Engine Gateway
@@ -498,18 +353,65 @@ with st.sidebar:
     if GOOGLE_API_KEY:
         st.caption(f"🟢 Primary LLM: `{ACTIVE_MODELS[0]}`")
 
+    if st.session_state.student_profile.get("onboarded"):
+        st.divider()
+        st.markdown("#### 🧠 Active Student Profile")
+        prof_s = st.session_state.student_profile
+        st.caption(f"**Bandwidth:** {prof_s['working_memory'].split(':')[0]}")
+        st.caption(f"**Channel:** {prof_s['sensory_channel'].split('(')[0].strip()}")
+        st.caption(f"**Initiation:** {prof_s['task_initiation'].split(':')[0]}")
+        st.caption(f"**Rigor:** {prof_s['sparring_tone'].split('(')[0].strip()}")
+        if prof_s.get("custom_passions"):
+            st.caption(f"**Anchors:** {prof_s['custom_passions'][:75]}")
+
 # ---------------------------------------------------------
-# Helper Functions
+# Helper Functions: PDF Page Counter, Calibration & AI
 # ---------------------------------------------------------
-def extract_pdf_text(file_bytes: bytes) -> str:
+def extract_pdf_text_and_pages(file_bytes: bytes) -> Tuple[str, int]:
     if not HAS_PYPDF:
-        return ""
+        return "", 1
     try:
         reader = PdfReader(io.BytesIO(file_bytes))
-        pages = [page.extract_text() or "" for page in reader.pages[:20]]
-        return "\n".join(pages).strip()
+        num_pages = max(len(reader.pages), 1)
+        pages = [page.extract_text() or "" for page in reader.pages[:40]]
+        return "\n".join(pages).strip(), num_pages
     except Exception:
-        return ""
+        return "", 1
+
+
+def estimate_material_pages(mat: dict) -> int:
+    if mat.get("page_count") and mat["page_count"] > 0:
+        return int(mat["page_count"])
+    word_count = len(mat.get("text", "").split())
+    return max(1, round(word_count / 300))
+
+
+def build_profile_prompt_directive(profile: dict) -> str:
+    wm = profile.get("working_memory", DIM1_OPTIONS[0])
+    sc = profile.get("sensory_channel", DIM2_OPTIONS[0])
+    ti = profile.get("task_initiation", DIM3_OPTIONS[1])
+    st_tone = profile.get("sparring_tone", DIM4_OPTIONS[0])
+    domains = ", ".join(profile.get("interest_domains", []))
+    custom = profile.get("custom_passions", "")
+    anchors = f"{domains}. Specific passions: {custom}".strip()
+
+    return (
+        f"STUDENT COGNITIVE PROFILE (APPLY STRICTLY):\n"
+        f"- Working Memory & Bandwidth: {wm}\n"
+        f"- Primary Sensory Channel: {sc}\n"
+        f"- Task Initiation Profile: {ti}\n"
+        f"- Sparring Intensity & Rigor: {st_tone}\n"
+        f"- Analogy & Metaphor Anchors (use vivid, non-repetitive examples from these interests): {anchors or 'Executive leadership & design'}\n"
+    )
+
+
+def get_word_cap_from_profile(profile: dict) -> Tuple[int, int]:
+    wm = profile.get("working_memory", "")
+    if "Severe linear fatigue" in wm:
+        return 130, 320
+    elif "Moderate linear tolerance" in wm:
+        return 175, 420
+    return 260, 650
 
 
 def get_lesson_materials(course: dict, lesson_id: str) -> List[Dict]:
@@ -521,7 +423,7 @@ def compute_lesson_mastery(course: dict, lesson_id: str) -> Tuple[int, str]:
     lesson_mats = get_lesson_materials(course, lesson_id)
     total_mats = max(len(lesson_mats), 1)
     reviewed_count = len([m for m in lesson_mats if m["id"] in st.session_state.reviewed_materials.get(lesson_id, set())])
-    mat_score = (reviewed_count / total_mats) * 50.0
+    mat_score = (reviewed_count / total_mats) * 50.0 if lesson_mats else 0.0
 
     sprints = st.session_state.micro_sprints.get(lesson_id, [])
     if sprints:
@@ -542,7 +444,8 @@ def compute_lesson_mastery(course: dict, lesson_id: str) -> Tuple[int, str]:
 
 def format_single_material_context(mat: dict) -> str:
     extra = f" (YouTube Link: {mat['youtube_url']})" if mat.get("youtube_url") else ""
-    return f"MATERIAL TITLE: {mat['title']} ({mat.get('type', 'Reading')}){extra}\nCONTENT:\n{mat.get('text', '')}"
+    pages = estimate_material_pages(mat)
+    return f"MATERIAL TITLE: {mat['title']} ({mat.get('type', 'Reading')} • ~{pages} page(s)){extra}\nCONTENT:\n{mat.get('text', '')}"
 
 
 def cluster_lesson_materials(materials: List[Dict]) -> str:
@@ -556,7 +459,11 @@ def cluster_lesson_materials(materials: List[Dict]) -> str:
 
 
 def sync_lucas_to_cohort(course_id: str, lesson_id: str):
+    if course_id not in st.session_state.courses:
+        return
     course = st.session_state.courses[course_id]
+    if lesson_id not in course["lessons"]:
+        return
     lesson = course["lessons"][lesson_id]
     pct, _ = compute_lesson_mastery(course, lesson_id)
     ans = st.session_state.lesson_answers.get(lesson_id, {})
@@ -572,13 +479,14 @@ def sync_lucas_to_cohort(course_id: str, lesson_id: str):
         if m.get("role") in ("user", "model")
     ]
 
-    existing = st.session_state.cohort_records.get("STU-LUCAS", {})
+    record_key = f"STU-LUCAS-{lesson_id}"
+    existing = st.session_state.cohort_records.get(record_key, {})
     prev_rubric = existing.get(
         "rubric",
         {"problem_clarification": 4.5, "theoretical_grounding": 4.5, "strategic_defensibility": 4.5, "feedback": ""},
     )
 
-    st.session_state.cohort_records["STU-LUCAS"] = {
+    st.session_state.cohort_records[record_key] = {
         "name": st.session_state.student_profile["name"],
         "initials": "LG",
         "course_id": course_id,
@@ -587,8 +495,8 @@ def sync_lucas_to_cohort(course_id: str, lesson_id: str):
         "mastery_pct": pct,
         "submitted": bool(ans.get("submitted", False)),
         "evaluated": bool(ans.get("evaluated", False)),
-        "submitted_at": ans.get("submitted_at", "Live Session"),
-        "hash": "NEAM-BSCL-LUCAS-7729-SHA256",
+        "submitted_at": ans.get("submitted_at", "Active Session"),
+        "hash": f"NEAM-BSCL-LUCAS-{lesson_id}-SHA256",
         "answer_text": ans.get("text", ""),
         "attachments": ans.get("attachments", []),
         "voice_notes": [],
@@ -597,7 +505,7 @@ def sync_lucas_to_cohort(course_id: str, lesson_id: str):
     }
 
 
-def generate_micro_sprints_ai(task_text: str, context_text: str, api_key: str) -> List[Dict]:
+def generate_micro_sprints_ai(task_text: str, context_text: str, profile: dict, api_key: str) -> List[Dict]:
     default_sprints = [
         {"step": "Sprint 1 (5 min): Extract the single core tension or assumption from the lesson materials.", "done": False},
         {"step": "Sprint 2 (10 min): Map 2 concrete strategic levers from the reading onto your thesis context.", "done": False},
@@ -606,20 +514,22 @@ def generate_micro_sprints_ai(task_text: str, context_text: str, api_key: str) -
     if not api_key:
         return default_sprints
 
+    prof_dir = build_profile_prompt_directive(profile)
     prompt = f"""
-Break this MBA assignment task down into exactly 3 bite-sized, sequential 5-to-10 minute micro-sprints for an executive with ADHD.
+{prof_dir}
+Break this MBA assignment task down into exactly 3 bite-sized, sequential 5-to-10 minute micro-sprints calibrated to the student's Task Initiation profile.
 Keep each step under 20 words. Return ONLY 3 lines formatted as:
 1 | [Step 1]
 2 | [Step 2]
 3 | [Step 3]
 
 Task: {task_text}
-Context: {context_text[:1200]}
+Context: {context_text[:1500]}
 """
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 250},
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 260},
     }
     for model_path in ACTIVE_MODELS:
         try:
@@ -639,8 +549,7 @@ Context: {context_text[:1200]}
     return default_sprints
 
 
-def generate_single_material_slides_ai(mat: dict, api_key: str) -> List[Dict]:
-    """Transforms ONLY the single selected material into a scannable visual slide deck."""
+def generate_single_material_slides_ai(mat: dict, profile: dict, api_key: str) -> List[Dict]:
     mat_context = format_single_material_context(mat)
     sentences = [s.strip() for s in mat.get("text", "").split(".") if len(s.strip()) > 12]
     fallback_slides = [
@@ -648,29 +557,31 @@ def generate_single_material_slides_ai(mat: dict, api_key: str) -> List[Dict]:
             "pillar": mat.get("type", "CORE MATERIAL").upper(),
             "title": mat["title"],
             "takeaway": sentences[0] + "." if sentences else mat["title"],
-            "bullets": [s + "." for s in sentences[1:3]] or ["Review the full material text or download the source file."],
-            "question": f"How does '{mat['title']}' directly apply to your strategic thesis?",
+            "bullets": [s + "." for s in sentences[1:3]] or ["Review the full material or download the source file."],
+            "question": f"How does '{mat['title']}' challenge your strategic assumptions?",
         }
     ]
     if not api_key:
         return fallback_slides
 
+    prof_dir = build_profile_prompt_directive(profile)
     prompt = f"""
-Convert ONLY this single course material into 3 high-impact, scannable executive slides.
-Do not include outside topics—focus strictly on this specific document.
-Return ONLY lines in this exact pipe-delimited format (one slide per line):
+{prof_dir}
+Convert ONLY this single course material into 4 high-impact, scannable executive slides.
+Weave analogies or examples subtly from the student's Passions & Interests when helpful so concepts stick immediately.
+Focus strictly on this specific document. Return ONLY lines in this exact pipe-delimited format (one slide per line):
 PILLAR | SLIDE TITLE | CORE TAKEAWAY | BULLET 1; BULLET 2 | SPARRING QUESTION
 
-{mat_context[:2800]}
+{mat_context[:4500]}
 """
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 500},
+        "generationConfig": {"temperature": 0.35, "maxOutputTokens": 700},
     }
     for model_path in ACTIVE_MODELS:
         try:
-            resp = requests.post(f"{BASE_GEMINI_URL}/{model_path}:generateContent", headers=headers, json=payload, timeout=20)
+            resp = requests.post(f"{BASE_GEMINI_URL}/{model_path}:generateContent", headers=headers, json=payload, timeout=22)
             if resp.status_code == 200:
                 raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
                 slides = []
@@ -693,36 +604,53 @@ PILLAR | SLIDE TITLE | CORE TAKEAWAY | BULLET 1; BULLET 2 | SPARRING QUESTION
 
 def generate_single_material_podcast(
     mat: dict,
+    profile: dict,
     gemini_key: str,
     eleven_key: str,
     progress_fn=None,
 ) -> Dict:
-    """Transforms ONLY the single selected material into a dual-voice podcast."""
+    """
+    Scales podcast duration dynamically to ~1 minute per page (~140 spoken words/min).
+    For example: 1 page -> ~1 min (4-5 turns); 5 pages -> ~5 min (16-20 turns); 20 pages -> ~15-20 min.
+    """
+    est_pages = estimate_material_pages(mat)
+    target_minutes = min(max(est_pages, 1), 20)
+    target_words = target_minutes * 140
+    target_turns = max(4, min(target_minutes * 4, 48))
+    max_tokens = min(max(int(target_words * 1.6), 450), 4500)
+
     if progress_fn:
-        progress_fn(f"Drafting dialogue exclusively from '{mat['title']}'...")
+        progress_fn(
+            f"Detected ~{est_pages} page(s) in '{mat['title']}' → Targeting ~{target_minutes} min podcast ({target_turns} dialogue turns)..."
+        )
 
+    prof_dir = build_profile_prompt_directive(profile)
     mat_context = format_single_material_context(mat)
-    script_prompt = f"""
-Convert ONLY this single Steinbeis course material into a punchy 4-line executive podcast dialogue between Host_A and Host_B.
-Host_A frames the practical question raised by this specific document. Host_B explains the exact insight from this document.
-Keep each line under 28 words. Output ONLY 4 lines in this exact format:
-Host_A | [Line 1]
-Host_B | [Line 2]
-Host_A | [Line 3]
-Host_B | [Line 4]
 
-{mat_context[:2600]}
+    script_prompt = f"""
+{prof_dir}
+
+TASK: Convert ONLY this single Steinbeis course material into an engaging, deep-dive executive podcast dialogue between Host_A and Host_B.
+- TARGET LENGTH: Approximately {target_minutes} minute(s) of spoken audio (~{target_words} total words across {target_turns} alternating turns).
+- PACING & DEPTH: Cover every major concept, framework, and nuance in the document proportionally to its {est_pages}-page length. Do not rush or skip sections.
+- NO META-INTRO FANFARE: Jump straight into the core strategic dilemma in turn 1.
+- PERSONALIZED ANALOGIES: Weave vivid, non-repetitive analogies from the student's Passions & Interests profile to anchor abstract theories.
+- STRICT FORMAT: Output ONLY alternating lines formatted exactly as:
+Host_A | [Dialogue turn]
+Host_B | [Dialogue turn]
+
+{mat_context[:18000]}
 """
     script = []
     if gemini_key:
         headers = {"Content-Type": "application/json", "x-goog-api-key": gemini_key}
         payload = {
             "contents": [{"role": "user", "parts": [{"text": script_prompt}]}],
-            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 350},
+            "generationConfig": {"temperature": 0.45, "maxOutputTokens": max_tokens},
         }
         for model_path in ACTIVE_MODELS:
             try:
-                resp = requests.post(f"{BASE_GEMINI_URL}/{model_path}:generateContent", headers=headers, json=payload, timeout=20)
+                resp = requests.post(f"{BASE_GEMINI_URL}/{model_path}:generateContent", headers=headers, json=payload, timeout=45)
                 if resp.status_code == 200:
                     raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
                     parsed = []
@@ -742,19 +670,24 @@ Host_B | [Line 4]
     if not script:
         sentences = [s.strip() for s in mat.get("text", "").split(".") if len(s.strip()) > 12]
         script = [
-            {"speaker": "Host_A", "text": f"Let's examine the core thesis of {mat['title']}."},
+            {"speaker": "Host_A", "text": f"Let's unpack the strategic architecture of {mat['title']}."},
             {"speaker": "Host_B", "text": (sentences[0] + ".") if sentences else mat["title"]},
-            {"speaker": "Host_A", "text": "And what is the practical takeaway for executive leaders?"},
-            {"speaker": "Host_B", "text": (sentences[1] + ".") if len(sentences) > 1 else "Apply this framework directly to eliminate strategic friction."},
+            {"speaker": "Host_A", "text": "How does that translate into executive decision-making under pressure?"},
+            {"speaker": "Host_B", "text": (sentences[1] + ".") if len(sentences) > 1 else "It forces leaders to eliminate low-value overhead and focus on structural differentiation."},
         ]
 
     if not eleven_key:
-        return {"bytes": None, "script": script, "warning": "No ElevenLabs key provided — using browser voice reader."}
+        return {
+            "bytes": None,
+            "script": script,
+            "target_minutes": target_minutes,
+            "warning": "No ElevenLabs key provided — using instant browser voice reader.",
+        }
 
     audio_buffer = io.BytesIO()
     for i, turn in enumerate(script):
         if progress_fn:
-            progress_fn(f"Synthesizing voice turn {i + 1}/{len(script)} via ElevenLabs...")
+            progress_fn(f"Synthesizing voice turn {i + 1}/{len(script)} (~{target_minutes} min target) via ElevenLabs...")
         v_id = VOICE_HOST_A if turn["speaker"] == "Host_A" else VOICE_HOST_B
         try:
             tts_resp = requests.post(
@@ -769,7 +702,7 @@ Host_B | [Line 4]
                     "model_id": "eleven_multilingual_v2",
                     "voice_settings": {"stability": 0.45, "similarity_boost": 0.75},
                 },
-                timeout=25,
+                timeout=30,
             )
             if tts_resp.status_code == 200:
                 audio_buffer.write(tts_resp.content)
@@ -777,13 +710,19 @@ Host_B | [Line 4]
                 return {
                     "bytes": None,
                     "script": script,
-                    "warning": f"ElevenLabs returned {tts_resp.status_code}. Switched to instant browser audio.",
+                    "target_minutes": target_minutes,
+                    "warning": f"ElevenLabs returned {tts_resp.status_code} (check credits/permissions). Switched to instant browser audio.",
                 }
         except Exception as e:
-            return {"bytes": None, "script": script, "warning": f"ElevenLabs timeout ({e}). Switched to instant browser audio."}
+            return {
+                "bytes": None,
+                "script": script,
+                "target_minutes": target_minutes,
+                "warning": f"ElevenLabs timeout ({e}). Switched to instant browser audio.",
+            }
 
     audio_buffer.seek(0)
-    return {"bytes": audio_buffer.read(), "script": script, "warning": None}
+    return {"bytes": audio_buffer.read(), "script": script, "target_minutes": target_minutes, "warning": None}
 
 
 def call_socratic_sparring(
@@ -797,8 +736,8 @@ def call_socratic_sparring(
     if not api_key:
         return "⚠️ Please enter your Google AI Studio Key in the sidebar to activate Socratic sparring."
 
-    intensity = profile.get("sparring_intensity", "Contrarian Devil's Advocate (Rigor)")
-    max_tokens = 320 if profile.get("working_memory_chunking") else 800
+    word_cap, max_tokens = get_word_cap_from_profile(profile)
+    prof_dir = build_profile_prompt_directive(profile)
 
     system_instruction = f"""
 You are NEAM, an executive Socratic sparring partner for Steinbeis University / Berlin School of Creative Leadership.
@@ -806,10 +745,12 @@ Candidate: {profile.get('name')} ({profile.get('program')}).
 Active Lesson: {lesson['title']}
 Lesson Assignment Task: {lesson['task']}
 
-STRICT SAFEGUARDS:
+{prof_dir}
+
+STRICT ARCHITECTURAL SAFEGUARDS:
 1. CLOSED-LOOP GROUNDING: Base every argument strictly on the lesson materials provided below.
 2. ANTI-GHOSTWRITING: Never write the student's final answer or essay for them. Challenge weak assumptions, test logic against the lesson frameworks, and ask sharp dialectic questions.
-3. COGNITIVE CALIBRATION: Tone = {intensity}. Keep replies concise (under 140 words) with clear bullet points or bold key concepts for executive scannability.
+3. COGNITIVE BANDWIDTH CAP: Strictly cap your response under {word_cap} words to match the student's calibrated Working Memory profile. Use crisp bullet points or bold key concepts.
 
 LESSON MATERIALS:
 \"\"\"{clustered_text}\"\"\"
@@ -867,7 +808,7 @@ if st.session_state.current_role is None:
                 <div style="font-size: 3rem; margin: 8px 0;">🎓</div>
                 <h2 style="margin-bottom: 8px;">Student</h2>
                 <p style="color: #475569; font-size: 0.92rem;">
-                    Autonomous cognitive calibration, single-material multimodal transformation, micro-sprints, and Socratic sparring.
+                    5-Dimension cognitive calibration, single-material multimodal transformation, micro-sprints, and Socratic sparring.
                 </p>
             </div>
             """,
@@ -886,7 +827,7 @@ if st.session_state.current_role is None:
                 <div style="font-size: 3rem; margin: 8px 0;">🏛️</div>
                 <h2 style="margin-bottom: 8px;">Professor</h2>
                 <p style="color: #475569; font-size: 0.92rem;">
-                    Manage courses, upload PDF/Video/YouTube materials, and evaluate student Proof-of-Work dossiers.
+                    Build courses & lessons, upload PDF/Video/YouTube materials, and evaluate student Proof-of-Work dossiers.
                 </p>
             </div>
             """,
@@ -905,49 +846,156 @@ elif st.session_state.current_role == "student":
     profile = st.session_state.student_profile
 
     # -----------------------------------------------------
-    # 2A. FIRST-TIME AUTONOMOUS CALIBRATION GATE
+    # 2A. ONE-TIME 5-DIMENSION COGNITIVE DIAGNOSTIC
+    # (Matching Your 5 Uploaded Screens)
     # -----------------------------------------------------
     if not profile["onboarded"]:
         if st.button("← Back to Landing", key="back_cal_landing"):
             st.session_state.current_role = None
             st.rerun()
 
-        st.markdown("## 🧠 Autonomous Cognitive Calibration")
-        st.info("First-time setup: Calibrate NEAM's executive scaffolding to your cognitive processing style before entering your course.")
+        step = st.session_state.calib_step
+        pills_html = ""
+        dim_labels = [
+            "1. Working Memory",
+            "2. Sensory Channel",
+            "3. Task Initiation",
+            "4. Sparring Tone",
+            "5. Passions & Interests",
+        ]
+        for idx_d, lbl in enumerate(dim_labels, start=1):
+            cls = "diag-pill diag-pill-active" if idx_d == step else "diag-pill"
+            pills_html += f"<span class='{cls}'>{lbl}</span>"
+
+        st.markdown(
+            f"""
+            <div class="diag-shell">
+                <div class="diag-eyebrow">NEAM COGNITIVE ONBOARDING DIAGNOSTIC • PERSONALIZED SCAFFOLDING</div>
+                <h2 style="margin:0 0 6px 0;">Calibrate Your Executive Learning Engine</h2>
+                <p style="margin:0; font-size:0.95rem; color:#cbd5e1 !important;">
+                    NEAM diagnoses your working memory limits and personal passions to tailor every podcast, slide deck, and Socratic challenge to your mental model.
+                </p>
+                <div class="diag-pill-row">{pills_html}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         with st.container(border=True):
-            c1, c2 = st.columns(2)
-            with c1:
-                q_chunk = st.checkbox(
-                    "Working Memory Chunking (Cap AI responses < 140 words)",
-                    value=profile["working_memory_chunking"],
+            if step == 1:
+                st.markdown("### Dimension 1: Working Memory & Cognitive Bandwidth")
+                st.write("**When tackling a 40-page academic case study, where does your focus typically break down?**")
+                sel_wm = st.radio(
+                    "Working Memory Profile",
+                    options=DIM1_OPTIONS,
+                    index=DIM1_OPTIONS.index(profile["working_memory"]) if profile["working_memory"] in DIM1_OPTIONS else 0,
+                    label_visibility="collapsed",
                 )
-                q_modality = st.selectbox(
-                    "Preferred Sensory Ingestion Channel:",
-                    ["Audio-First (Executive Podcast)", "Visual Slide Deck (Scannable)", "Raw Readings"],
-                    index=0,
+                st.session_state.student_profile["working_memory"] = sel_wm
+
+                st.write("")
+                _, n_col = st.columns([4, 1.5])
+                with n_col:
+                    if st.button("Next Dimension →", type="primary", use_container_width=True):
+                        st.session_state.calib_step = 2
+                        st.rerun()
+
+            elif step == 2:
+                st.markdown("### Dimension 2: Primary Sensory Channel")
+                st.write("**Do you retain strategic concepts better by listening on a walk, viewing diagrams, or talking out loud?**")
+                sel_sc = st.radio(
+                    "Primary Sensory Channel",
+                    options=DIM2_OPTIONS,
+                    index=DIM2_OPTIONS.index(profile["sensory_channel"]) if profile["sensory_channel"] in DIM2_OPTIONS else 0,
+                    label_visibility="collapsed",
                 )
-            with c2:
-                q_init = st.checkbox(
-                    "Task Initiation Scaffolding (Enable 3-Step Bite-Sized Micro-Sprints)",
-                    value=profile["task_initiation_scaffolding"],
+                st.session_state.student_profile["sensory_channel"] = sel_sc
+
+                st.write("")
+                b_col, _, n_col = st.columns([1.2, 3, 1.5])
+                with b_col:
+                    if st.button("← Back", use_container_width=True):
+                        st.session_state.calib_step = 1
+                        st.rerun()
+                with n_col:
+                    if st.button("Next Dimension →", type="primary", use_container_width=True):
+                        st.session_state.calib_step = 3
+                        st.rerun()
+
+            elif step == 3:
+                st.markdown("### Dimension 3: Task Initiation Friction (ADHD Blank-Page Paralysis)")
+                st.write("**What is your biggest hurdle when starting an assignment: starting the draft or refining logic?**")
+                sel_ti = st.radio(
+                    "Task Initiation Friction",
+                    options=DIM3_OPTIONS,
+                    index=DIM3_OPTIONS.index(profile["task_initiation"]) if profile["task_initiation"] in DIM3_OPTIONS else 1,
+                    label_visibility="collapsed",
                 )
-                q_tone = st.selectbox(
-                    "Socratic Sparring Rigor:",
-                    ["Contrarian Devil's Advocate (Rigor)", "Supportive Socratic Coach"],
-                    index=0,
+                st.session_state.student_profile["task_initiation"] = sel_ti
+
+                st.write("")
+                b_col, _, n_col = st.columns([1.2, 3, 1.5])
+                with b_col:
+                    if st.button("← Back", use_container_width=True):
+                        st.session_state.calib_step = 2
+                        st.rerun()
+                with n_col:
+                    if st.button("Next Dimension →", type="primary", use_container_width=True):
+                        st.session_state.calib_step = 4
+                        st.rerun()
+
+            elif step == 4:
+                st.markdown("### Dimension 4: Sparring Intensity & Rigor")
+                st.write("**Do you prefer an encouraging executive coach or a contrarian devil's advocate?**")
+                sel_st = st.radio(
+                    "Sparring Intensity",
+                    options=DIM4_OPTIONS,
+                    index=DIM4_OPTIONS.index(profile["sparring_tone"]) if profile["sparring_tone"] in DIM4_OPTIONS else 0,
+                    label_visibility="collapsed",
+                )
+                st.session_state.student_profile["sparring_tone"] = sel_st
+
+                st.write("")
+                b_col, _, n_col = st.columns([1.2, 3, 1.5])
+                with b_col:
+                    if st.button("← Back", use_container_width=True):
+                        st.session_state.calib_step = 3
+                        st.rerun()
+                with n_col:
+                    if st.button("Next Dimension →", type="primary", use_container_width=True):
+                        st.session_state.calib_step = 5
+                        st.rerun()
+
+            elif step == 5:
+                st.markdown("### Dimension 5: Personalized Anchor & Analogy Engine")
+                st.write("**What are your personal passions & interests?**")
+                st.caption("NEAM dynamically weaves examples and analogies from these fields into every podcast dialogue, slide deck, and Socratic challenge so concepts stick immediately.")
+
+                selected_domains = st.multiselect(
+                    "Select your core passion domains:",
+                    options=DIM5_INTEREST_CATEGORIES,
+                    default=[d for d in profile.get("interest_domains", []) if d in DIM5_INTEREST_CATEGORIES],
+                )
+                custom_passions = st.text_input(
+                    "SPECIFIC SUB-INTERESTS OR OBSESSIONS (FREE-FORM):",
+                    value=profile.get("custom_passions", ""),
+                    placeholder="e.g., Mid-century architecture, cycling performance, sci-fi worldbuilding, specialty cocktails...",
                 )
 
-            st.write("")
-            if st.button("Save Calibration & Launch Course Workspace →", type="primary"):
-                st.session_state.student_profile.update({
-                    "onboarded": True,
-                    "working_memory_chunking": q_chunk,
-                    "primary_modality": q_modality,
-                    "task_initiation_scaffolding": q_init,
-                    "sparring_intensity": q_tone,
-                })
-                st.rerun()
+                st.session_state.student_profile["interest_domains"] = selected_domains
+                st.session_state.student_profile["custom_passions"] = custom_passions
+
+                st.write("")
+                b_col, _, save_col = st.columns([1.2, 2.5, 2])
+                with b_col:
+                    if st.button("← Back", use_container_width=True):
+                        st.session_state.calib_step = 4
+                        st.rerun()
+                with save_col:
+                    if st.button("✅ Apply & Save Diagnostic Profile", type="primary", use_container_width=True):
+                        st.session_state.student_profile["onboarded"] = True
+                        st.session_state.calib_step = 1
+                        st.rerun()
 
     # -----------------------------------------------------
     # 2B. STUDENT COURSE & SYLLABUS HOME
@@ -968,47 +1016,60 @@ elif st.session_state.current_role == "student":
             )
         with h_info:
             st.markdown(f"### {profile['name']}")
-            st.caption(f"{profile['program']} • Calibration: **{profile['primary_modality']}**")
+            st.caption(f"{profile['program']} • Calibrated Channel: **{profile['sensory_channel'].split('(')[0].strip()}**")
         with h_cal:
             if st.button("⚙️ Recalibrate", use_container_width=True):
                 st.session_state.student_profile["onboarded"] = False
+                st.session_state.calib_step = 1
                 st.rerun()
 
         st.divider()
 
-        course_ids = list(st.session_state.courses.keys())
-        selected_c_id = st.selectbox(
-            "Enrolled MBA Course:",
-            options=course_ids,
-            index=course_ids.index(st.session_state.selected_student_course_id),
-            format_func=lambda cid: f"{st.session_state.courses[cid]['code']} — {st.session_state.courses[cid]['course_name']}",
-        )
-        st.session_state.selected_student_course_id = selected_c_id
-        course = st.session_state.courses[selected_c_id]
+        if not st.session_state.courses:
+            st.info(
+                "No courses have been published yet. Switch to the **Professor** portal to create a course, "
+                "add lessons, and upload your PDF/Video/YouTube materials."
+            )
+        else:
+            course_ids = list(st.session_state.courses.keys())
+            if st.session_state.selected_student_course_id not in course_ids:
+                st.session_state.selected_student_course_id = course_ids[0]
 
-        st.markdown(f"<span class='badge-green'>Active MBA Syllabus</span>", unsafe_allow_html=True)
-        st.markdown(f"## {course['course_name']}")
-        st.caption(f"Faculty Lead: **{st.session_state.professor_profile['name']}** • Select a syllabus lesson below:")
-        st.write("")
+            selected_c_id = st.selectbox(
+                "Enrolled MBA Course:",
+                options=course_ids,
+                index=course_ids.index(st.session_state.selected_student_course_id),
+                format_func=lambda cid: f"{st.session_state.courses[cid]['code']} — {st.session_state.courses[cid]['course_name']}",
+            )
+            st.session_state.selected_student_course_id = selected_c_id
+            course = st.session_state.courses[selected_c_id]
 
-        for l_id, lesson in course["lessons"].items():
-            pct, _ = compute_lesson_mastery(course, l_id)
-            lesson_mats = get_lesson_materials(course, l_id)
-            with st.container(border=True):
-                c_title, c_prog, c_btn = st.columns([4, 2, 1.5])
-                with c_title:
-                    st.markdown(f"#### {lesson['title']}")
-                    st.caption(f"{lesson['summary']} ({len(lesson_mats)} assigned materials)")
-                with c_prog:
-                    st.markdown(f"**Lesson Mastery: {pct}%**")
-                    st.progress(pct / 100.0)
-                with c_btn:
-                    st.write("")
-                    if st.button("Open Lesson →", key=f"open_{l_id}", type="primary", use_container_width=True):
-                        st.session_state.selected_lesson_id = l_id
-                        st.session_state.open_full_reader_mat_id = None
-                        sync_lucas_to_cohort(selected_c_id, l_id)
-                        st.rerun()
+            st.markdown("<span class='badge-green'>Active MBA Syllabus</span>", unsafe_allow_html=True)
+            st.markdown(f"## {course['course_name']}")
+            st.caption(f"Faculty Lead: **{st.session_state.professor_profile['name']}** • Select a syllabus lesson below:")
+            st.write("")
+
+            if not course["lessons"]:
+                st.warning("This course has no lessons yet. Add lessons inside the Professor Workspace.")
+            else:
+                for l_id, lesson in course["lessons"].items():
+                    pct, _ = compute_lesson_mastery(course, l_id)
+                    lesson_mats = get_lesson_materials(course, l_id)
+                    with st.container(border=True):
+                        c_title, c_prog, c_btn = st.columns([4, 2, 1.5])
+                        with c_title:
+                            st.markdown(f"#### {lesson['title']}")
+                            st.caption(f"{lesson['summary']} ({len(lesson_mats)} assigned materials)")
+                        with c_prog:
+                            st.markdown(f"**Lesson Mastery: {pct}%**")
+                            st.progress(pct / 100.0)
+                        with c_btn:
+                            st.write("")
+                            if st.button("Open Lesson →", key=f"open_{l_id}", type="primary", use_container_width=True):
+                                st.session_state.selected_lesson_id = l_id
+                                st.session_state.open_full_reader_mat_id = None
+                                sync_lucas_to_cohort(selected_c_id, l_id)
+                                st.rerun()
 
     # -----------------------------------------------------
     # 2C. ACTIVE LESSON WORKSPACE
@@ -1029,8 +1090,8 @@ elif st.session_state.current_role == "student":
                     "role": "model",
                     "time": datetime.now().strftime("%H:%M"),
                     "content": (
-                        f"Closed-loop sparring locked to **{lesson['title']}**. "
-                        "Inspect individual materials on the left, then test your thesis premise here before submitting."
+                        f"Closed-loop sparring locked to **{lesson['title']}** and calibrated to your cognitive profile. "
+                        "Inspect a material on the left, then test your thesis premise here before submitting."
                     ),
                 }
             ]
@@ -1068,7 +1129,7 @@ elif st.session_state.current_role == "student":
                 unsafe_allow_html=True,
             )
 
-        # Optional Expanded Full-Window Document/PDF/Video Reader Banner
+        # Full-Window Material Viewer
         if st.session_state.open_full_reader_mat_id:
             open_mat = next((m for m in materials if m["id"] == st.session_state.open_full_reader_mat_id), None)
             if open_mat:
@@ -1076,7 +1137,7 @@ elif st.session_state.current_role == "student":
                     fr_h1, fr_h2 = st.columns([5, 1])
                     with fr_h1:
                         st.markdown(f"### 📖 Full Material Viewer: {open_mat['title']}")
-                        st.caption(f"Format: **{open_mat.get('type', 'Reading')}**")
+                        st.caption(f"Format: **{open_mat.get('type', 'Reading')}** • Estimated Length: **~{estimate_material_pages(open_mat)} page(s)**")
                     with fr_h2:
                         if st.button("✖ Close Viewer", key="close_full_reader", use_container_width=True):
                             st.session_state.open_full_reader_mat_id = None
@@ -1094,10 +1155,10 @@ elif st.session_state.current_role == "student":
                             st.write(open_mat["text"])
                     elif open_mat.get("file_bytes") and open_mat.get("mime_type") == "application/pdf":
                         b64_pdf = base64.b64encode(open_mat["file_bytes"]).decode("utf-8")
-                        pdf_iframe = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="520" type="application/pdf" style="border:1px solid #cbd5e1; border-radius:8px;"></iframe>'
-                        st.components.v1.html(pdf_iframe, height=535)
+                        pdf_iframe = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="560" type="application/pdf" style="border:1px solid #cbd5e1; border-radius:8px;"></iframe>'
+                        st.components.v1.html(pdf_iframe, height=575)
                         if open_mat.get("text"):
-                            with st.expander("View Extracted Text"):
+                            with st.expander("View Extracted PDF Text"):
                                 st.write(open_mat["text"])
                     else:
                         st.markdown(
@@ -1117,10 +1178,10 @@ elif st.session_state.current_role == "student":
         # -------------------------------------------------
         with rail_col:
             st.markdown("#### 1️⃣ Select 1 Lesson Material")
-            st.caption("Choose **one** material below to inspect, open, download, or transform into a podcast/slide deck:")
+            st.caption("Pick **one** material to view, download, or transform (~1 min podcast per page):")
 
             if not materials:
-                st.info("No materials assigned to this lesson yet.")
+                st.info("No materials assigned to this lesson yet. Upload materials in the Professor Workspace.")
             else:
                 mat_ids = [m["id"] for m in materials]
                 default_mat_id = st.session_state.selected_material_by_lesson.get(l_id)
@@ -1132,7 +1193,8 @@ elif st.session_state.current_role == "student":
                     done_mark = "✅ " if mid in st.session_state.reviewed_materials[l_id] else ""
                     mtype = m_obj.get("type", "")
                     t_icon = "🎬" if "Video" in mtype or "YouTube" in mtype else ("📕" if "PDF" in mtype else "📄")
-                    return f"{done_mark}{t_icon} {m_obj['title']}"
+                    pg = estimate_material_pages(m_obj)
+                    return f"{done_mark}{t_icon} {m_obj['title']} (~{pg}p)"
 
                 chosen_mat_id = st.radio(
                     "Choose single material:",
@@ -1145,19 +1207,18 @@ elif st.session_state.current_role == "student":
                 st.session_state.selected_material_by_lesson[l_id] = chosen_mat_id
                 selected_mat = next(m for m in materials if m["id"] == chosen_mat_id)
                 is_done = chosen_mat_id in st.session_state.reviewed_materials[l_id]
+                est_pg = estimate_material_pages(selected_mat)
 
-                # Active Single Material Inspector Card
                 st.markdown(
                     f"""
                     <div class="material-viewer-card">
-                        <span class="badge-blue">Selected Material • {selected_mat.get('type', 'Reading')}</span>
+                        <span class="badge-blue">{selected_mat.get('type', 'Reading')} • ~{est_pg} page(s)</span>
                         <h4 style="margin:4px 0 6px 0;">{selected_mat['title']}</h4>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-                # Preview inside card
                 if selected_mat.get("youtube_url"):
                     st.write(selected_mat.get("text", ""))
                     st.link_button(
@@ -1172,7 +1233,6 @@ elif st.session_state.current_role == "student":
                     snippet = selected_mat.get("text", "")
                     st.write(snippet[:320] + ("..." if len(snippet) > 320 else ""))
 
-                # Action Row: Open Full Window | Download | Mark Reviewed
                 act1, act2, act3 = st.columns(3)
                 with act1:
                     if st.button("🔍 Open Full View", key=f"open_view_{chosen_mat_id}", use_container_width=True):
@@ -1211,24 +1271,34 @@ elif st.session_state.current_role == "student":
                 st.divider()
 
                 # -------------------------------------------------
-                # STEP 2: TRANSFORM ONLY THIS SELECTED MATERIAL
+                # STEP 2: TRANSFORM ONLY THIS SELECTED MATERIAL (~1 MIN / PAGE)
                 # -------------------------------------------------
                 st.markdown("#### 2️⃣ Transform Selected Material Only")
-                st.caption(f"Generates output exclusively from: **{selected_mat['title']}**")
+                st.caption(
+                    f"Target runtime: **~{min(max(est_pg, 1), 20)} min** (~1 min/page) • Tailored to your calibrated passions & bandwidth."
+                )
 
+                default_radio_idx = 1 if "Visual" in profile.get("sensory_channel", "") else 0
                 transform_mode = st.radio(
                     "Sensory Channel",
                     ["🎧 Dual-Voice Podcast", "📊 Visual Slide Deck"],
+                    index=default_radio_idx,
                     horizontal=True,
                     label_visibility="collapsed",
                     key=f"tmode_{l_id}",
                 )
 
                 if transform_mode == "🎧 Dual-Voice Podcast":
-                    if st.button("Synthesize Podcast for This Material", type="primary", use_container_width=True, key=f"btn_pod_{chosen_mat_id}"):
+                    if st.button(
+                        f"Synthesize ~{min(max(est_pg, 1), 20)}-Min Podcast",
+                        type="primary",
+                        use_container_width=True,
+                        key=f"btn_pod_{chosen_mat_id}",
+                    ):
                         prog = st.empty()
                         res = generate_single_material_podcast(
                             mat=selected_mat,
+                            profile=profile,
                             gemini_key=GOOGLE_API_KEY,
                             eleven_key=ELEVENLABS_API_KEY,
                             progress_fn=lambda msg: prog.info(msg),
@@ -1274,10 +1344,10 @@ elif st.session_state.current_role == "student":
                                 st.markdown(f"**{who}:** {t['text']}")
 
                 elif transform_mode == "📊 Visual Slide Deck":
-                    if st.button("Generate Slides for This Material", type="primary", use_container_width=True, key=f"btn_sld_{chosen_mat_id}"):
+                    if st.button("Generate Scannable Slides", type="primary", use_container_width=True, key=f"btn_sld_{chosen_mat_id}"):
                         with st.spinner(f"Distilling '{selected_mat['title']}' into visual slides..."):
                             st.session_state.material_slides_cache[chosen_mat_id] = generate_single_material_slides_ai(
-                                selected_mat, GOOGLE_API_KEY
+                                selected_mat, profile, GOOGLE_API_KEY
                             )
                             st.session_state.reviewed_materials[l_id].add(chosen_mat_id)
                             sync_lucas_to_cohort(c_id, l_id)
@@ -1320,7 +1390,7 @@ elif st.session_state.current_role == "student":
                     if st.button("Deconstruct Task into 3 Micro-Sprints", key=f"gen_sp_{l_id}"):
                         with st.spinner("Breaking task into low-friction sprints..."):
                             st.session_state.micro_sprints[l_id] = generate_micro_sprints_ai(
-                                lesson["task"], clustered_text, GOOGLE_API_KEY
+                                lesson["task"], clustered_text, profile, GOOGLE_API_KEY
                             )
                         st.rerun()
                 else:
@@ -1451,7 +1521,7 @@ elif st.session_state.current_role == "student":
 
 
 # =========================================================
-# 3. PROFESSOR WORKSPACE
+# 3. PROFESSOR WORKSPACE (CLEAN SLATE COURSE & LESSON BUILDER)
 # =========================================================
 elif st.session_state.current_role == "professor":
     prof = st.session_state.professor_profile
@@ -1466,30 +1536,54 @@ elif st.session_state.current_role == "professor":
         st.caption(prof["title"])
         st.divider()
 
-        st.subheader("Courses Taught at the University")
-        st.caption("Select a course to manage PDF/Video/YouTube materials or evaluate student Proof-of-Work dossiers:")
-        st.write("")
-
-        for cid, cdata in st.session_state.courses.items():
-            l_count = len(cdata["lessons"])
-            m_count = len(cdata["materials_repo"])
-            pending_evals = sum(
-                1 for s in st.session_state.cohort_records.values()
-                if s.get("course_id") == cid and s.get("submitted") and not s.get("evaluated")
-            )
-            with st.container(border=True):
-                cc1, cc2 = st.columns([4.5, 1.5])
-                with cc1:
-                    badge_extra = f" &nbsp;<span class='badge-amber'>🔔 {pending_evals} Pending Evaluation</span>" if pending_evals else ""
-                    st.markdown(f"<span class='badge-blue'>{cdata['code']}</span>{badge_extra}", unsafe_allow_html=True)
-                    st.markdown(f"### {cdata['course_name']}")
-                    st.caption(f"{cdata['description']} • **{l_count} Lessons** | **{m_count} Course Materials**")
-                with cc2:
-                    st.write("")
-                    st.write("")
-                    if st.button("Open Course →", key=f"prof_open_{cid}", type="primary", use_container_width=True):
-                        st.session_state.selected_prof_course_id = cid
+        hdr_c, btn_c = st.columns([4, 1.6])
+        with hdr_c:
+            st.subheader("Courses Taught at the University")
+            st.caption("Create a course and add lessons & materials to begin:")
+        with btn_c:
+            with st.popover("➕ Create New Course", use_container_width=True):
+                st.markdown("#### New MBA Course")
+                c_code = st.text_input("Course Code (e.g., EMBA-601)", key="new_c_code")
+                c_name = st.text_input("Course Title", key="new_c_name")
+                c_desc = st.text_area("Course Description", height=80, key="new_c_desc")
+                if st.button("Create Course", type="primary", key="create_c_btn"):
+                    if c_name.strip():
+                        new_cid = f"CRS-{int(time.time())}"
+                        st.session_state.courses[new_cid] = {
+                            "course_name": c_name.strip(),
+                            "code": c_code.strip() or "EMBA",
+                            "description": c_desc.strip(),
+                            "lessons": {},
+                            "materials_repo": [],
+                        }
+                        st.session_state.selected_prof_course_id = new_cid
                         st.rerun()
+                    else:
+                        st.warning("Please enter a course title.")
+
+        if not st.session_state.courses:
+            st.info("No courses created yet. Click **➕ Create New Course** above to set up your first MBA course.")
+        else:
+            for cid, cdata in st.session_state.courses.items():
+                l_count = len(cdata["lessons"])
+                m_count = len(cdata["materials_repo"])
+                pending_evals = sum(
+                    1 for s in st.session_state.cohort_records.values()
+                    if s.get("course_id") == cid and s.get("submitted") and not s.get("evaluated")
+                )
+                with st.container(border=True):
+                    cc1, cc2 = st.columns([4.5, 1.5])
+                    with cc1:
+                        badge_extra = f" &nbsp;<span class='badge-amber'>🔔 {pending_evals} Pending Evaluation</span>" if pending_evals else ""
+                        st.markdown(f"<span class='badge-blue'>{cdata['code']}</span>{badge_extra}", unsafe_allow_html=True)
+                        st.markdown(f"### {cdata['course_name']}")
+                        st.caption(f"{cdata['description']} • **{l_count} Lessons** | **{m_count} Course Materials**")
+                    with cc2:
+                        st.write("")
+                        st.write("")
+                        if st.button("Open Course →", key=f"prof_open_{cid}", type="primary", use_container_width=True):
+                            st.session_state.selected_prof_course_id = cid
+                            st.rerun()
 
     else:
         cid = st.session_state.selected_prof_course_id
@@ -1516,37 +1610,60 @@ elif st.session_state.current_role == "professor":
         with tab_builder:
             col_lessons, col_materials = st.columns([1.25, 1.45], gap="large")
 
+            # LEFT COLUMN: COURSE'S LESSONS (+ ADD NEW LESSON)
             with col_lessons:
-                st.markdown("### 📘 Course's Lessons")
-                st.caption("Each lesson makes all assigned PDFs, videos, YouTube links, and readings available to students:")
-
-                for l_id, lesson in course["lessons"].items():
-                    assigned_mats = get_lesson_materials(course, l_id)
-                    with st.container(border=True):
-                        st.markdown(f"#### {lesson['title']}")
-                        st.caption(lesson["summary"])
-                        st.markdown(f"**Assigned Materials ({len(assigned_mats)}):**")
-                        if assigned_mats:
-                            for am in assigned_mats:
-                                icon = "🎬" if "Video" in am["type"] or "YouTube" in am["type"] else ("📕" if "PDF" in am["type"] else "📄")
-                                st.markdown(f"- {icon} {am['title']}")
-                        else:
-                            st.caption("_No materials assigned yet._")
-
-                        with st.expander("✏️ Edit Lesson Task"):
-                            updated_task = st.text_area(
-                                "Task for the Lesson",
-                                value=lesson["task"],
-                                key=f"edit_task_{cid}_{l_id}",
-                                height=90,
-                            )
-                            if st.button("Save Task", key=f"save_task_{cid}_{l_id}"):
-                                st.session_state.courses[cid]["lessons"][l_id]["task"] = updated_task
-                                st.success("Task updated!")
+                lh1, lh2 = st.columns([3, 1.6])
+                with lh1:
+                    st.markdown("### 📘 Course's Lessons")
+                with lh2:
+                    with st.popover("➕ Add Lesson", use_container_width=True):
+                        st.markdown("#### New Syllabus Lesson")
+                        new_l_title = st.text_input("Lesson Title (e.g., Lesson 1: Value Innovation)", key=f"nl_t_{cid}")
+                        new_l_sum = st.text_input("Short Summary", key=f"nl_s_{cid}")
+                        new_l_task = st.text_area("Task / Assignment Prompt for Students", height=100, key=f"nl_task_{cid}")
+                        if st.button("Create Lesson", type="primary", key=f"add_l_btn_{cid}"):
+                            if new_l_title.strip():
+                                new_lid = f"LES-{int(time.time())}"
+                                st.session_state.courses[cid]["lessons"][new_lid] = {
+                                    "title": new_l_title.strip(),
+                                    "summary": new_l_sum.strip() or "Core syllabus lesson.",
+                                    "task": new_l_task.strip() or "Synthesize the key strategic takeaways from the assigned materials.",
+                                }
                                 st.rerun()
+                            else:
+                                st.warning("Enter a lesson title.")
 
+                if not course["lessons"]:
+                    st.info("No lessons in this course yet. Click **➕ Add Lesson** above.")
+                else:
+                    for l_id, lesson in course["lessons"].items():
+                        assigned_mats = get_lesson_materials(course, l_id)
+                        with st.container(border=True):
+                            st.markdown(f"#### {lesson['title']}")
+                            st.caption(lesson["summary"])
+                            st.markdown(f"**Assigned Materials ({len(assigned_mats)}):**")
+                            if assigned_mats:
+                                for am in assigned_mats:
+                                    icon = "🎬" if "Video" in am["type"] or "YouTube" in am["type"] else ("📕" if "PDF" in am["type"] else "📄")
+                                    st.markdown(f"- {icon} {am['title']} (~{estimate_material_pages(am)}p)")
+                            else:
+                                st.caption("_No materials assigned yet._")
+
+                            with st.expander("✏️ Edit Lesson Task"):
+                                updated_task = st.text_area(
+                                    "Task for the Lesson",
+                                    value=lesson["task"],
+                                    key=f"edit_task_{cid}_{l_id}",
+                                    height=90,
+                                )
+                                if st.button("Save Task", key=f"save_task_{cid}_{l_id}"):
+                                    st.session_state.courses[cid]["lessons"][l_id]["task"] = updated_task
+                                    st.success("Task updated!")
+                                    st.rerun()
+
+            # RIGHT COLUMN: COURSE'S MATERIALS (+ UPLOAD PDF / VIDEO / YOUTUBE / TEXT)
             with col_materials:
-                hdr_m, btn_m = st.columns([3, 1.5])
+                hdr_m, btn_m = st.columns([3, 1.6])
                 with hdr_m:
                     st.markdown("### 📚 Course's Materials")
                     st.caption("Sorted alphabetically (A–Z). Upload PDF, Video, YouTube, or Text:")
@@ -1572,7 +1689,7 @@ elif st.session_state.current_role == "professor":
                             up_file = st.file_uploader("Upload TXT/MD File (Optional)", type=["txt", "md"], key=f"up_txt_{cid}")
 
                         new_m_text = st.text_area(
-                            "Summary / Key Notes (Used when transforming this material into Podcast or Slides)",
+                            "Summary / Key Notes (Used alongside PDF text when generating Podcast or Slides)",
                             height=100,
                             key=f"new_mtxt_{cid}",
                         )
@@ -1591,21 +1708,27 @@ elif st.session_state.current_role == "professor":
                                 fmimetype = "text/plain"
                                 fname = f"{new_m_title.strip().replace(' ', '_')}.txt"
                                 extracted_text = new_m_text.strip()
+                                page_count = 1
 
                                 if up_file is not None:
                                     fbytes = up_file.getvalue()
                                     fmimetype = up_file.type or "application/octet-stream"
                                     fname = up_file.name
                                     if new_m_type == "PDF Document":
-                                        pdf_txt = extract_pdf_text(fbytes)
+                                        pdf_txt, page_count = extract_pdf_text_and_pages(fbytes)
                                         if pdf_txt:
                                             extracted_text = (extracted_text + "\n\n" + pdf_txt).strip()
                                         elif not extracted_text:
                                             extracted_text = f"PDF Document uploaded: {fname}"
-                                    elif new_m_type == "Video File" and not extracted_text:
-                                        extracted_text = f"Uploaded video lecture: {fname}"
-                                    elif new_m_type == "Text / Reading" and not extracted_text:
-                                        extracted_text = fbytes.decode("utf-8", errors="ignore")
+                                    elif new_m_type == "Video File":
+                                        if not extracted_text:
+                                            extracted_text = f"Uploaded video lecture: {fname}"
+                                    elif new_m_type == "Text / Reading":
+                                        if not extracted_text:
+                                            extracted_text = fbytes.decode("utf-8", errors="ignore")
+                                        page_count = max(1, round(len(extracted_text.split()) / 300))
+                                else:
+                                    page_count = max(1, round(len(extracted_text.split()) / 300))
 
                                 if new_m_type == "YouTube Video":
                                     if not yt_link.strip():
@@ -1624,6 +1747,7 @@ elif st.session_state.current_role == "professor":
                                     "file_bytes": fbytes,
                                     "mime_type": fmimetype,
                                     "youtube_url": yt_link.strip() if new_m_type == "YouTube Video" else None,
+                                    "page_count": page_count,
                                 })
                                 st.success("Material uploaded & added to repository!")
                                 st.rerun()
@@ -1631,92 +1755,100 @@ elif st.session_state.current_role == "professor":
                 sorted_repo = sorted(course["materials_repo"], key=lambda x: x["title"].lower())
                 lesson_ids = list(course["lessons"].keys())
 
-                for mat in sorted_repo:
-                    mtype = mat.get("type", "Text / Reading")
-                    icon = "🎬" if "Video" in mtype or "YouTube" in mtype else ("📕" if "PDF" in mtype else "📄")
-                    with st.container(border=True):
-                        st.markdown(f"**{icon} {mat['title']}** `{mtype}`")
-                        if mat.get("youtube_url"):
-                            st.caption(f"🔗 {mat['youtube_url']}")
-                        else:
-                            preview = mat.get("text", "")
-                            st.caption(preview[:130] + ("..." if len(preview) > 130 else ""))
+                if not sorted_repo:
+                    st.info("No materials uploaded yet. Click **➕ Upload Material** above to add PDFs, videos, YouTube links, or readings.")
+                else:
+                    for mat in sorted_repo:
+                        mtype = mat.get("type", "Text / Reading")
+                        icon = "🎬" if "Video" in mtype or "YouTube" in mtype else ("📕" if "PDF" in mtype else "📄")
+                        pg = estimate_material_pages(mat)
+                        with st.container(border=True):
+                            st.markdown(f"**{icon} {mat['title']}** `{mtype} • ~{pg}p`")
+                            if mat.get("youtube_url"):
+                                st.caption(f"🔗 {mat['youtube_url']}")
+                            else:
+                                preview = mat.get("text", "")
+                                st.caption(preview[:130] + ("..." if len(preview) > 130 else ""))
 
-                        current_assigned = [lid for lid in mat.get("assigned_lessons", []) if lid in lesson_ids]
-                        new_assigned = st.multiselect(
-                            "Assigned to Lesson(s):",
-                            options=lesson_ids,
-                            default=current_assigned,
-                            format_func=lambda x: course["lessons"][x]["title"],
-                            key=f"assign_{cid}_{mat['id']}",
-                        )
-                        if set(new_assigned) != set(current_assigned):
-                            for orig_m in st.session_state.courses[cid]["materials_repo"]:
-                                if orig_m["id"] == mat["id"]:
-                                    orig_m["assigned_lessons"] = new_assigned
-                            st.rerun()
+                            current_assigned = [lid for lid in mat.get("assigned_lessons", []) if lid in lesson_ids]
+                            new_assigned = st.multiselect(
+                                "Assigned to Lesson(s):",
+                                options=lesson_ids,
+                                default=current_assigned,
+                                format_func=lambda x: course["lessons"][x]["title"],
+                                key=f"assign_{cid}_{mat['id']}",
+                            )
+                            if set(new_assigned) != set(current_assigned):
+                                for orig_m in st.session_state.courses[cid]["materials_repo"]:
+                                    if orig_m["id"] == mat["id"]:
+                                        orig_m["assigned_lessons"] = new_assigned
+                                st.rerun()
 
         with tab_audit:
-            roster_col, dossier_col = st.columns([1.15, 2.35], gap="large")
+            cohort_for_course = {
+                k: v for k, v in st.session_state.cohort_records.items() if v.get("course_id") == cid
+            }
 
-            with roster_col:
-                st.markdown("### 👥 Enrolled Students")
-                st.caption("Sorted alphabetically (A–Z). Highlighted names have ungraded submissions:")
+            if not cohort_for_course:
+                st.info("No student activity or submissions recorded for this course yet. Enter as **Student**, open a lesson, and interact or submit work to see it appear here live.")
+            else:
+                roster_col, dossier_col = st.columns([1.15, 2.35], gap="large")
 
-                cohort_list = sorted(
-                    [s for s in st.session_state.cohort_records.values() if s.get("course_id") == cid],
-                    key=lambda x: x["name"].lower(),
-                )
-                id_by_name = {v["name"]: k for k, v in st.session_state.cohort_records.items() if v.get("course_id") == cid}
+                with roster_col:
+                    st.markdown("### 👥 Enrolled Students")
+                    st.caption("Sorted alphabetically (A–Z). Highlighted names have ungraded submissions:")
 
-                for stu in cohort_list:
-                    sid = id_by_name[stu["name"]]
-                    needs_eval = stu.get("submitted") and not stu.get("evaluated")
-                    is_selected = st.session_state.selected_audit_student_id == sid
+                    cohort_list = sorted(cohort_for_course.values(), key=lambda x: x["name"].lower())
+                    id_by_key = {f"{v['name']}_{v['lesson_id']}": k for k, v in cohort_for_course.items()}
 
-                    border_color = "#f59e0b" if needs_eval else ("#0284c7" if is_selected else "#e2e8f0")
-                    bg_color = "#fffbeb" if needs_eval else ("#f0f9ff" if is_selected else "#ffffff")
-                    bar_col = "#059669" if stu["mastery_pct"] == 100 else "#0284c7"
+                    for stu in cohort_list:
+                        sid = id_by_key[f"{stu['name']}_{stu['lesson_id']}"]
+                        needs_eval = stu.get("submitted") and not stu.get("evaluated")
+                        is_selected = st.session_state.selected_audit_student_id == sid
 
-                    status_badge = (
-                        "<span class='badge-amber'>🔔 Needs Evaluation</span>"
-                        if needs_eval
-                        else ("<span class='badge-green'>✓ Evaluated</span>" if stu.get("evaluated") else "<span class='badge-blue'>In Progress</span>")
-                    )
+                        border_color = "#f59e0b" if needs_eval else ("#0284c7" if is_selected else "#e2e8f0")
+                        bg_color = "#fffbeb" if needs_eval else ("#f0f9ff" if is_selected else "#ffffff")
+                        bar_col = "#059669" if stu["mastery_pct"] == 100 else "#0284c7"
 
-                    st.markdown(
-                        f"""
-                        <div style="background:{bg_color}; border:2px solid {border_color}; border-radius:12px; padding:12px 14px; margin-bottom:8px;">
-                            <div style="display:flex; align-items:center; justify-content:space-between;">
-                                <div style="display:flex; align-items:center; gap:10px;">
-                                    <div style="width:36px; height:36px; border-radius:50%; background:#0284c7; color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.85rem;">
-                                        {stu['initials']}
+                        status_badge = (
+                            "<span class='badge-amber'>🔔 Needs Evaluation</span>"
+                            if needs_eval
+                            else ("<span class='badge-green'>✓ Evaluated</span>" if stu.get("evaluated") else "<span class='badge-blue'>In Progress</span>")
+                        )
+
+                        st.markdown(
+                            f"""
+                            <div style="background:{bg_color}; border:2px solid {border_color}; border-radius:12px; padding:12px 14px; margin-bottom:8px;">
+                                <div style="display:flex; align-items:center; justify-content:space-between;">
+                                    <div style="display:flex; align-items:center; gap:10px;">
+                                        <div style="width:36px; height:36px; border-radius:50%; background:#0284c7; color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.85rem;">
+                                            {stu['initials']}
+                                        </div>
+                                        <div>
+                                            <div style="font-weight:700; color:#0f172a; font-size:0.95rem;">{stu['name']}</div>
+                                            <div style="font-size:0.75rem; color:#475569;">{stu['lesson_title']} • {stu['mastery_pct']}%</div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div style="font-weight:700; color:#0f172a; font-size:0.95rem;">{stu['name']}</div>
-                                        <div style="font-size:0.75rem; color:#475569;">Mastery: {stu['mastery_pct']}%</div>
-                                    </div>
+                                    {status_badge}
                                 </div>
-                                {status_badge}
+                                <div style="width:100%; height:8px; background:#e2e8f0; border-radius:9999px; overflow:hidden; margin-top:8px;">
+                                    <div style="width:{stu['mastery_pct']}%; height:100%; background:{bar_col};"></div>
+                                </div>
                             </div>
-                            <div style="width:100%; height:8px; background:#e2e8f0; border-radius:9999px; overflow:hidden; margin-top:8px;">
-                                <div style="width:{stu['mastery_pct']}%; height:100%; background:{bar_col};"></div>
-                            </div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    if st.button(f"Inspect {stu['name'].split()[0]}'s Dossier →", key=f"sel_stu_{sid}", use_container_width=True):
-                        st.session_state.selected_audit_student_id = sid
-                        st.rerun()
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                        if st.button(f"Inspect Dossier →", key=f"sel_stu_{sid}", use_container_width=True):
+                            st.session_state.selected_audit_student_id = sid
+                            st.rerun()
 
-            with dossier_col:
-                active_sid = st.session_state.selected_audit_student_id
-                if active_sid not in st.session_state.cohort_records:
-                    active_sid = next(iter(st.session_state.cohort_records.keys()))
-                stu = st.session_state.cohort_records[active_sid]
+                with dossier_col:
+                    active_sid = st.session_state.selected_audit_student_id
+                    if active_sid not in cohort_for_course:
+                        active_sid = next(iter(cohort_for_course.keys()))
+                    stu = cohort_for_course[active_sid]
 
-                dossier_md = f"""# PROOF-OF-WORK VERIFICATION • {stu['hash']}
+                    dossier_md = f"""# PROOF-OF-WORK VERIFICATION • {stu['hash']}
 **Candidate:** {stu['name']}
 **Lesson:** {stu['lesson_title']}
 **Status:** {'Submitted' if stu['submitted'] else 'In Progress'} ({stu['submitted_at']})
@@ -1725,151 +1857,128 @@ elif st.session_state.current_role == "professor":
 ## 1. Student's Final Submitted Answer
 {stu['answer_text'] or '_No written answer submitted yet._'}
 
-## 2. Recorded Voice Interactions
-""" + ("\n".join([f"- **{v['label']}** ({v['time']}): \"{v['transcript']}\"" for v in stu.get("voice_notes", [])]) or "_None recorded._") + """
-
-## 3. Complete Socratic Sparring Dialogue (Anti-Ghostwriting: 100% Student Reasoning)
+## 2. Complete Socratic Sparring Dialogue (Anti-Ghostwriting: 100% Student Reasoning)
 """ + ("\n".join([f"- **{t['role'].upper()}** [{t['time']}]: {t['content']}" for t in stu.get("sparring_dialogue", [])]) or "_No sparring turns recorded._")
 
-                dh1, dh2 = st.columns([3.5, 1.5])
-                with dh1:
-                    st.caption(f"PROOF-OF-WORK VERIFICATION • `{stu['hash']}`")
-                    st.markdown(f"### {stu['name']} — {stu['lesson_title']}")
-                    st.caption(f"{course['course_name']} • {stu['submitted_at']}")
-                with dh2:
-                    st.write("")
-                    st.download_button(
-                        "⬇️ Download Dossier (.md)",
-                        data=dossier_md.encode("utf-8"),
-                        file_name=f"{stu['name'].replace(' ', '_')}_ProofOfWork.md",
-                        mime="text/markdown",
-                        use_container_width=True,
+                    dh1, dh2 = st.columns([3.5, 1.5])
+                    with dh1:
+                        st.caption(f"PROOF-OF-WORK VERIFICATION • `{stu['hash']}`")
+                        st.markdown(f"### {stu['name']} — {stu['lesson_title']}")
+                        st.caption(f"{course['course_name']} • {stu['submitted_at']}")
+                    with dh2:
+                        st.write("")
+                        st.download_button(
+                            "⬇️ Download Dossier (.md)",
+                            data=dossier_md.encode("utf-8"),
+                            file_name=f"{stu['name'].replace(' ', '_')}_ProofOfWork.md",
+                            mime="text/markdown",
+                            use_container_width=True,
+                        )
+
+                    st.markdown(
+                        f"""
+                        <div class="dossier-card">
+                            <div style="display:flex; justify-content:space-between; font-size:0.78rem; font-weight:700; color:#475569; margin-bottom:6px;">
+                                <span>1. STUDENT'S FINAL SUBMITTED ANSWER</span>
+                                <span>{len(stu.get('answer_text', ''))} characters</span>
+                            </div>
+                            <p style="margin:0; font-size:0.95rem; color:#0f172a;">{stu.get('answer_text') or 'No answer submitted yet.'}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
                     )
 
-                st.markdown(
-                    f"""
-                    <div class="dossier-card">
-                        <div style="display:flex; justify-content:space-between; font-size:0.78rem; font-weight:700; color:#475569; margin-bottom:6px;">
-                            <span>1. STUDENT'S FINAL SUBMITTED ANSWER</span>
-                            <span>{len(stu.get('answer_text', ''))} characters</span>
-                        </div>
-                        <p style="margin:0; font-size:0.95rem; color:#0f172a;">{stu.get('answer_text') or 'No answer submitted yet.'}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                    if stu.get("attachments"):
+                        st.markdown("**📎 Student Uploaded Deliverables:**")
+                        for att_idx, att in enumerate(stu["attachments"]):
+                            ac_a, ac_b = st.columns([3, 1])
+                            with ac_a:
+                                if att.get("type", "").startswith("image/"):
+                                    st.image(att["bytes"], caption=att["name"], width=280)
+                                else:
+                                    st.markdown(f"- 📄 **{att['name']}** (`{att.get('type', 'file')}`)")
+                            with ac_b:
+                                st.download_button(
+                                    "⬇️ Download",
+                                    data=att["bytes"],
+                                    file_name=att["name"],
+                                    mime=att.get("type", "application/octet-stream"),
+                                    key=f"prof_dl_{active_sid}_{att_idx}",
+                                )
 
-                if stu.get("attachments"):
-                    st.markdown("**📎 Student Uploaded Deliverables:**")
-                    for att_idx, att in enumerate(stu["attachments"]):
-                        ac_a, ac_b = st.columns([3, 1])
-                        with ac_a:
-                            if att.get("type", "").startswith("image/"):
-                                st.image(att["bytes"], caption=att["name"], width=280)
+                    st.markdown("**🥊 2. COMPLETE SOCRATIC SPARRING DIALOGUE (Anti-Ghostwriting: 100% Student Reasoning):**")
+                    dialogue = stu.get("sparring_dialogue", [])
+                    if dialogue:
+                        for turn in dialogue:
+                            if turn["role"] == "model":
+                                st.markdown(
+                                    f"""
+                                    <div class="sparring-bubble-ai">
+                                        <div style="display:flex; justify-content:space-between; font-size:0.78rem; font-weight:700; color:#0369a1;">
+                                            <span>NEAM AI Sparring Partner</span>
+                                            <span>{turn.get('time', '')}</span>
+                                        </div>
+                                        <div style="font-size:0.9rem; margin-top:4px;">{turn['content']}</div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
                             else:
-                                st.markdown(f"- 📄 **{att['name']}** (`{att.get('type', 'file')}`)")
-                        with ac_b:
-                            st.download_button(
-                                "⬇️ Download",
-                                data=att["bytes"],
-                                file_name=att["name"],
-                                mime=att.get("type", "application/octet-stream"),
-                                key=f"prof_dl_{active_sid}_{att_idx}",
-                            )
-
-                v_notes = stu.get("voice_notes", [])
-                st.markdown(f"**🎙️ 2. RECORDED VOICE INTERACTIONS ({len(v_notes)} AUDIO NOTES):**")
-                if v_notes:
-                    for vn in v_notes:
-                        st.markdown(
-                            f"""
-                            <div class="dossier-card" style="padding:12px 16px;">
-                                <div style="display:flex; justify-content:space-between; font-size:0.8rem; font-weight:700;">
-                                    <span>{vn['label']}</span>
-                                    <span style="color:#64748b;">{vn['time']}</span>
-                                </div>
-                                <p style="margin:4px 0 0 0; font-style:italic; color:#334155;">"{vn['transcript']}"</p>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                else:
-                    st.caption("No voice notes recorded in this session.")
-
-                st.markdown("**🥊 3. COMPLETE SOCRATIC SPARRING DIALOGUE (Anti-Ghostwriting: 100% Student Reasoning):**")
-                dialogue = stu.get("sparring_dialogue", [])
-                if dialogue:
-                    for turn in dialogue:
-                        if turn["role"] == "model":
-                            st.markdown(
-                                f"""
-                                <div class="sparring-bubble-ai">
-                                    <div style="display:flex; justify-content:space-between; font-size:0.78rem; font-weight:700; color:#0369a1;">
-                                        <span>NEAM AI Sparring Partner</span>
-                                        <span>{turn.get('time', '')}</span>
+                                st.markdown(
+                                    f"""
+                                    <div class="sparring-bubble-student">
+                                        <div style="display:flex; justify-content:space-between; font-size:0.78rem; font-weight:700; color:#065f46;">
+                                            <span>{stu['name']}</span>
+                                            <span>{turn.get('time', '')}</span>
+                                        </div>
+                                        <div style="font-size:0.9rem; margin-top:4px;">{turn['content']}</div>
                                     </div>
-                                    <div style="font-size:0.9rem; margin-top:4px;">{turn['content']}</div>
-                                </div>
-                                """,
-                                unsafe_allow_html=True,
-                            )
-                        else:
-                            st.markdown(
-                                f"""
-                                <div class="sparring-bubble-student">
-                                    <div style="display:flex; justify-content:space-between; font-size:0.78rem; font-weight:700; color:#065f46;">
-                                        <span>{stu['name']}</span>
-                                        <span>{turn.get('time', '')}</span>
-                                    </div>
-                                    <div style="font-size:0.9rem; margin-top:4px;">{turn['content']}</div>
-                                </div>
-                                """,
-                                unsafe_allow_html=True,
-                            )
-                else:
-                    st.caption("No sparring dialogue recorded yet.")
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
+                    else:
+                        st.caption("No sparring dialogue recorded yet.")
 
-                st.divider()
+                    st.divider()
 
-                rubric = stu.get("rubric", {"problem_clarification": 4.0, "theoretical_grounding": 4.0, "strategic_defensibility": 4.0, "feedback": ""})
-                r1, r2, r3 = st.columns(3)
-                with r1:
-                    s_prob = st.slider("Problem Clarification (0–5)", 0.0, 5.0, float(rubric["problem_clarification"]), 0.1, key=f"rub_p_{active_sid}")
-                with r2:
-                    s_theo = st.slider("Theoretical Grounding (0–5)", 0.0, 5.0, float(rubric["theoretical_grounding"]), 0.1, key=f"rub_t_{active_sid}")
-                with r3:
-                    s_strat = st.slider("Strategic Defensibility (0–5)", 0.0, 5.0, float(rubric["strategic_defensibility"]), 0.1, key=f"rub_s_{active_sid}")
+                    rubric = stu.get("rubric", {"problem_clarification": 4.0, "theoretical_grounding": 4.0, "strategic_defensibility": 4.0, "feedback": ""})
+                    r1, r2, r3 = st.columns(3)
+                    with r1:
+                        s_prob = st.slider("Problem Clarification (0–5)", 0.0, 5.0, float(rubric["problem_clarification"]), 0.1, key=f"rub_p_{active_sid}")
+                    with r2:
+                        s_theo = st.slider("Theoretical Grounding (0–5)", 0.0, 5.0, float(rubric["theoretical_grounding"]), 0.1, key=f"rub_t_{active_sid}")
+                    with r3:
+                        s_strat = st.slider("Strategic Defensibility (0–5)", 0.0, 5.0, float(rubric["strategic_defensibility"]), 0.1, key=f"rub_s_{active_sid}")
 
-                composite = round((s_prob + s_theo + s_strat) / 3.0, 2)
-                st.markdown(
-                    f"""
-                    <div style="display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 16px; border-radius:8px; margin:8px 0;">
-                        <span style="font-weight:700; color:#065f46;">⚖️ FACULTY RUBRIC GRADING CONSOLE</span>
-                        <span style="font-weight:800; font-size:1.1rem; color:#059669;">Composite: {composite:.2f} / 5.0</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+                    composite = round((s_prob + s_theo + s_strat) / 3.0, 2)
+                    st.markdown(
+                        f"""
+                        <div style="display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 16px; border-radius:8px; margin:8px 0;">
+                            <span style="font-weight:700; color:#065f46;">⚖️ FACULTY RUBRIC GRADING CONSOLE</span>
+                            <span style="font-weight:800; font-size:1.1rem; color:#059669;">Composite: {composite:.2f} / 5.0</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
-                qual_fb = st.text_area(
-                    "PROFESSOR QUALITATIVE FEEDBACK:",
-                    value=rubric.get("feedback", ""),
-                    placeholder="Enter professor comments on strategic rigor, trade-off clarity, and defensibility...",
-                    key=f"rub_fb_{active_sid}",
-                    height=90,
-                )
+                    qual_fb = st.text_area(
+                        "PROFESSOR QUALITATIVE FEEDBACK:",
+                        value=rubric.get("feedback", ""),
+                        placeholder="Enter professor comments on strategic rigor, trade-off clarity, and defensibility...",
+                        key=f"rub_fb_{active_sid}",
+                        height=90,
+                    )
 
-                if st.button("Save Grade & Rubric Evaluation", type="primary", key=f"save_grade_{active_sid}"):
-                    st.session_state.cohort_records[active_sid]["rubric"] = {
-                        "problem_clarification": s_prob,
-                        "theoretical_grounding": s_theo,
-                        "strategic_defensibility": s_strat,
-                        "feedback": qual_fb,
-                    }
-                    st.session_state.cohort_records[active_sid]["evaluated"] = True
-                    if active_sid == "STU-LUCAS":
+                    if st.button("Save Grade & Rubric Evaluation", type="primary", key=f"save_grade_{active_sid}"):
+                        st.session_state.cohort_records[active_sid]["rubric"] = {
+                            "problem_clarification": s_prob,
+                            "theoretical_grounding": s_theo,
+                            "strategic_defensibility": s_strat,
+                            "feedback": qual_fb,
+                        }
+                        st.session_state.cohort_records[active_sid]["evaluated"] = True
                         lid_target = stu["lesson_id"]
                         if lid_target in st.session_state.lesson_answers:
                             st.session_state.lesson_answers[lid_target]["evaluated"] = True
-                    st.success(f"Evaluation saved for {stu['name']} ({composite:.2f}/5.0). Pending highlight cleared!")
-                    st.rerun()
+                        st.success(f"Evaluation saved for {stu['name']} ({composite:.2f}/5.0). Pending highlight cleared!")
+                        st.rerun()
