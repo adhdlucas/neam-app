@@ -3,9 +3,8 @@ import io
 import time
 import json
 import base64
-import hashlib
 from datetime import datetime
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple
 import requests
 import streamlit as st
 
@@ -100,6 +99,14 @@ st.markdown(
         border-radius: 10px;
         padding: 16px 20px;
         margin-bottom: 12px;
+    }
+    .material-viewer-card {
+        background-color: #f8fafc;
+        border: 2px solid #0284c7;
+        border-radius: 12px;
+        padding: 16px;
+        margin-top: 8px;
+        margin-bottom: 14px;
     }
     .thermo-wrap {
         background: #f1f5f9;
@@ -207,6 +214,12 @@ if "selected_student_course_id" not in st.session_state:
 if "selected_lesson_id" not in st.session_state:
     st.session_state.selected_lesson_id = None
 
+if "selected_material_by_lesson" not in st.session_state:
+    st.session_state.selected_material_by_lesson = {}  # {lesson_id: material_id}
+
+if "open_full_reader_mat_id" not in st.session_state:
+    st.session_state.open_full_reader_mat_id = None
+
 if "selected_prof_course_id" not in st.session_state:
     st.session_state.selected_prof_course_id = None
 
@@ -228,12 +241,6 @@ if "courses" not in st.session_state:
                         "(Eliminate, Reduce, Raise, Create), formulate a strategic thesis explaining how eliminating that factor "
                         "lowers cost structure while unlocking uncontested buyer value."
                     ),
-                    "fallback_script": [
-                        {"speaker": "Host_A", "text": "Most executives assume higher strategic rigor requires higher cost. Why does Value Innovation reject that?"},
-                        {"speaker": "Host_B", "text": "Because competing on existing factors traps you in a red ocean. Eliminating low-value industry norms cuts cost while raising differentiation."},
-                        {"speaker": "Host_A", "text": "So the ERRC Grid isn't just brainstorming—it's a structural filter."},
-                        {"speaker": "Host_B", "text": "Exactly. By forcing simultaneous elimination and creation, you build a value curve competitors cannot imitate."}
-                    ],
                 },
                 "LES-02": {
                     "title": "Lesson 2: Creating Shared Value (CSV) & Sustainable Leadership",
@@ -243,12 +250,6 @@ if "courses" not in st.session_state:
                         "Propose one value-chain reconception in your organization that generates measurable economic profit "
                         "directly through solving a societal or environmental bottleneck."
                     ),
-                    "fallback_script": [
-                        {"speaker": "Host_A", "text": "Why do Porter and Kramer argue that traditional CSR fails to transform core business strategy?"},
-                        {"speaker": "Host_B", "text": "Because CSR sits at the margin as a reputation cost center. Shared Value embeds societal impact directly into the profit engine."},
-                        {"speaker": "Host_A", "text": "And that happens by reconceiving products, value chain productivity, or local clusters."},
-                        {"speaker": "Host_B", "text": "Precisely. When social progress drives operational efficiency, sustainability becomes self-funding."}
-                    ],
                 },
             },
             "materials_repo": [
@@ -261,7 +262,10 @@ if "courses" not in st.session_state:
                     "text": (
                         "Blue Ocean Strategy challenges companies to break out of red oceans of bloody competition "
                         "by creating uncontested market space that makes the competition irrelevant. Instead of choosing "
-                        "between low cost and high differentiation, Value Innovation pursues both simultaneously."
+                        "between low cost and high differentiation, Value Innovation pursues both simultaneously. "
+                        "Value innovation is created in the region where a company's actions favorably affect both its cost structure "
+                        "and its value proposition to buyers. Cost savings are made by eliminating and reducing the factors an industry competes on. "
+                        "Buyer value is lifted by raising and creating elements the industry has never offered."
                     ),
                     "file_bytes": None,
                     "mime_type": "text/plain",
@@ -275,8 +279,9 @@ if "courses" not in st.session_state:
                     "assigned_lessons": ["LES-01"],
                     "text": (
                         "In executive education, traditional monomodal lecturing represents a high-overhead red ocean "
-                        "that creates cognitive overload for neurodivergent leaders. Closed-loop multimodal scaffolding "
-                        "eliminates passive friction while creating active dialectic proof-of-work."
+                        "that creates cognitive overload for neurodivergent leaders. Long static PDFs and passive slide decks "
+                        "force working-memory bottlenecks. Closed-loop multimodal scaffolding eliminates passive friction "
+                        "by letting executives isolate single artifacts, listen via conversational audio, and test ideas via active dialectic proof-of-work."
                     ),
                     "file_bytes": None,
                     "mime_type": "text/plain",
@@ -293,7 +298,8 @@ if "courses" not in st.session_state:
                         "1) Which factors that the industry takes for granted should be Eliminated? "
                         "2) Which factors should be Reduced well below the industry standard? "
                         "3) Which factors should be Raised well above the industry standard? "
-                        "4) Which factors should be Created that the industry has never offered?"
+                        "4) Which factors should be Created that the industry has never offered? "
+                        "The ERRC Grid pushes companies not only to ask all four questions but also to act on all four to create a new value curve."
                     ),
                     "file_bytes": None,
                     "mime_type": "text/plain",
@@ -307,7 +313,7 @@ if "courses" not in st.session_state:
                     "assigned_lessons": ["LES-01"],
                     "text": (
                         "Video Lecture Summary: W. Chan Kim and Renée Mauborgne explain how organizations reconstruct "
-                        "market boundaries using the Strategy Canvas and ERRC Grid to unlock non-customers."
+                        "market boundaries using the Strategy Canvas and ERRC Grid to unlock non-customers instead of fighting over shrinking market share."
                     ),
                     "file_bytes": None,
                     "mime_type": None,
@@ -357,10 +363,6 @@ if "courses" not in st.session_state:
                         "Audit one recurring decision workflow in your organization and propose two structural redesigns "
                         "that eliminate working-memory bottlenecks while preserving strategic accountability."
                     ),
-                    "fallback_script": [
-                        {"speaker": "Host_A", "text": "Why do conventional corporate workflows burn out high-performing creative thinkers?"},
-                        {"speaker": "Host_B", "text": "Because they optimize for uniform compliance rather than cognitive clarity and focused execution sprints."},
-                    ],
                 },
             },
             "materials_repo": [
@@ -382,7 +384,6 @@ if "courses" not in st.session_state:
         },
     }
 
-# Cohort Student Roster & Proof-of-Work Dossiers (for Faculty Console)
 if "cohort_records" not in st.session_state:
     st.session_state.cohort_records = {
         "STU-ELENA": {
@@ -393,7 +394,7 @@ if "cohort_records" not in st.session_state:
             "lesson_title": "Lesson 1: Value Innovation & Blue Ocean Strategy",
             "mastery_pct": 100,
             "submitted": True,
-            "evaluated": False,  # Lights up in Professor's roster until evaluated!
+            "evaluated": False,
             "submitted_at": "Yesterday at 17:30 CET",
             "hash": "NEAM-BSCL-ELENA-4871-SHA256",
             "answer_text": (
@@ -465,16 +466,17 @@ if "micro_sprints" not in st.session_state:
     st.session_state.micro_sprints = {}
 
 if "lesson_answers" not in st.session_state:
-    st.session_state.lesson_answers = {}  # {lesson_id: {"text": str, "submitted": bool, "attachments": list, "evaluated": bool}}
+    st.session_state.lesson_answers = {}
 
 if "lesson_sparring" not in st.session_state:
     st.session_state.lesson_sparring = {}
 
-if "podcast_cache" not in st.session_state:
-    st.session_state.podcast_cache = {}
+# Per-material caches so each single material has its own dedicated Podcast & Slide Deck
+if "material_podcast_cache" not in st.session_state:
+    st.session_state.material_podcast_cache = {}  # {material_id: {"bytes": ..., "script": ..., "warning": ...}}
 
-if "slides_cache" not in st.session_state:
-    st.session_state.slides_cache = {}
+if "material_slides_cache" not in st.session_state:
+    st.session_state.material_slides_cache = {}  # {material_id: list_of_slides}
 
 # ---------------------------------------------------------
 # Sidebar: Engine Gateway
@@ -504,7 +506,7 @@ def extract_pdf_text(file_bytes: bytes) -> str:
         return ""
     try:
         reader = PdfReader(io.BytesIO(file_bytes))
-        pages = [page.extract_text() or "" for page in reader.pages[:15]]
+        pages = [page.extract_text() or "" for page in reader.pages[:20]]
         return "\n".join(pages).strip()
     except Exception:
         return ""
@@ -538,6 +540,11 @@ def compute_lesson_mastery(course: dict, lesson_id: str) -> Tuple[int, str]:
     return total, color
 
 
+def format_single_material_context(mat: dict) -> str:
+    extra = f" (YouTube Link: {mat['youtube_url']})" if mat.get("youtube_url") else ""
+    return f"MATERIAL TITLE: {mat['title']} ({mat.get('type', 'Reading')}){extra}\nCONTENT:\n{mat.get('text', '')}"
+
+
 def cluster_lesson_materials(materials: List[Dict]) -> str:
     if not materials:
         return "No materials currently assigned to this lesson."
@@ -549,7 +556,6 @@ def cluster_lesson_materials(materials: List[Dict]) -> str:
 
 
 def sync_lucas_to_cohort(course_id: str, lesson_id: str):
-    """Syncs Lucas's live lesson activity into the Faculty Proof-of-Work Console."""
     course = st.session_state.courses[course_id]
     lesson = course["lessons"][lesson_id]
     pct, _ = compute_lesson_mastery(course, lesson_id)
@@ -591,7 +597,7 @@ def sync_lucas_to_cohort(course_id: str, lesson_id: str):
     }
 
 
-def generate_micro_sprints_ai(task_text: str, clustered_text: str, api_key: str) -> List[Dict]:
+def generate_micro_sprints_ai(task_text: str, context_text: str, api_key: str) -> List[Dict]:
     default_sprints = [
         {"step": "Sprint 1 (5 min): Extract the single core tension or assumption from the lesson materials.", "done": False},
         {"step": "Sprint 2 (10 min): Map 2 concrete strategic levers from the reading onto your thesis context.", "done": False},
@@ -608,7 +614,7 @@ Keep each step under 20 words. Return ONLY 3 lines formatted as:
 3 | [Step 3]
 
 Task: {task_text}
-Context: {clustered_text[:1200]}
+Context: {context_text[:1200]}
 """
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
     payload = {
@@ -633,26 +639,29 @@ Context: {clustered_text[:1200]}
     return default_sprints
 
 
-def generate_visual_slides_ai(lesson: dict, materials: List[Dict], clustered_text: str, api_key: str) -> List[Dict]:
+def generate_single_material_slides_ai(mat: dict, api_key: str) -> List[Dict]:
+    """Transforms ONLY the single selected material into a scannable visual slide deck."""
+    mat_context = format_single_material_context(mat)
+    sentences = [s.strip() for s in mat.get("text", "").split(".") if len(s.strip()) > 12]
     fallback_slides = [
         {
-            "pillar": "CORE PREMISE",
-            "title": lesson["title"],
-            "takeaway": lesson["summary"],
-            "bullets": [m["title"] for m in materials] or ["Core Lesson Framework"],
-            "question": "Which assumption in this lesson challenges your current leadership practice most?",
+            "pillar": mat.get("type", "CORE MATERIAL").upper(),
+            "title": mat["title"],
+            "takeaway": sentences[0] + "." if sentences else mat["title"],
+            "bullets": [s + "." for s in sentences[1:3]] or ["Review the full material text or download the source file."],
+            "question": f"How does '{mat['title']}' directly apply to your strategic thesis?",
         }
     ]
     if not api_key:
         return fallback_slides
 
     prompt = f"""
-Convert the clustered lesson materials below into 3 high-impact, scannable executive slides.
+Convert ONLY this single course material into 3 high-impact, scannable executive slides.
+Do not include outside topics—focus strictly on this specific document.
 Return ONLY lines in this exact pipe-delimited format (one slide per line):
 PILLAR | SLIDE TITLE | CORE TAKEAWAY | BULLET 1; BULLET 2 | SPARRING QUESTION
 
-Materials:
-{clustered_text[:2500]}
+{mat_context[:2800]}
 """
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
     payload = {
@@ -682,85 +691,27 @@ Materials:
     return fallback_slides
 
 
-def call_socratic_sparring(
-    prompt: str,
-    history: list,
-    lesson: dict,
-    clustered_text: str,
-    profile: dict,
-    api_key: str,
-) -> str:
-    if not api_key:
-        return "⚠️ Please enter your Google AI Studio Key in the sidebar to activate Socratic sparring."
-
-    intensity = profile.get("sparring_intensity", "Contrarian Devil's Advocate (Rigor)")
-    max_tokens = 320 if profile.get("working_memory_chunking") else 800
-
-    system_instruction = f"""
-You are NEAM, an executive Socratic sparring partner for Steinbeis University / Berlin School of Creative Leadership.
-Candidate: {profile.get('name')} ({profile.get('program')}).
-Active Lesson: {lesson['title']}
-Lesson Assignment Task: {lesson['task']}
-
-STRICT SAFEGUARDS:
-1. CLOSED-LOOP GROUNDING: Base every argument strictly on the clustered lesson materials provided below.
-2. ANTI-GHOSTWRITING: Never write the student's final answer or essay for them. Challenge weak assumptions, test logic against the lesson frameworks, and ask sharp dialectic questions.
-3. COGNITIVE CALIBRATION: Tone = {intensity}. Keep replies concise (under 140 words) with clear bullet points or bold key concepts for executive scannability.
-
-CLUSTERED LESSON MATERIALS:
-\"\"\"{clustered_text}\"\"\"
-"""
-    contents = []
-    for m in history:
-        contents.append({"role": "user" if m["role"] == "user" else "model", "parts": [{"text": m["content"]}]})
-    contents.append({"role": "user", "parts": [{"text": prompt}]})
-
-    headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
-    payload = {
-        "contents": contents,
-        "generationConfig": {"temperature": 0.35, "maxOutputTokens": max_tokens},
-        "systemInstruction": {"parts": [{"text": system_instruction}]},
-    }
-
-    for model_path in ACTIVE_MODELS:
-        try:
-            resp = requests.post(f"{BASE_GEMINI_URL}/{model_path}:generateContent", headers=headers, json=payload, timeout=20)
-            if resp.status_code == 200:
-                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-            elif resp.status_code in [503, 429, 500, 404]:
-                continue
-            else:
-                return f"API Error ({resp.status_code}): {resp.text[:180]}"
-        except Exception:
-            continue
-
-    return (
-        "Socratic Pushback (Closed-Loop): Your argument touches the surface, but how does it hold up against the core framework "
-        "in this lesson's uploaded readings? Identify the exact trade-off you are eliminating before finalizing your answer."
-    )
-
-
-def generate_podcast_audio(
-    lesson: dict,
-    clustered_text: str,
+def generate_single_material_podcast(
+    mat: dict,
     gemini_key: str,
     eleven_key: str,
     progress_fn=None,
 ) -> Dict:
+    """Transforms ONLY the single selected material into a dual-voice podcast."""
     if progress_fn:
-        progress_fn("Clustering lesson materials & generating dialogue script...")
+        progress_fn(f"Drafting dialogue exclusively from '{mat['title']}'...")
 
+    mat_context = format_single_material_context(mat)
     script_prompt = f"""
-Convert these clustered Steinbeis lesson materials into a punchy 4-line executive podcast dialogue between Host_A and Host_B.
-Host_A poses the strategic dilemma. Host_B explains the theoretical insight from the materials.
+Convert ONLY this single Steinbeis course material into a punchy 4-line executive podcast dialogue between Host_A and Host_B.
+Host_A frames the practical question raised by this specific document. Host_B explains the exact insight from this document.
 Keep each line under 28 words. Output ONLY 4 lines in this exact format:
 Host_A | [Line 1]
 Host_B | [Line 2]
 Host_A | [Line 3]
 Host_B | [Line 4]
 
-Materials:
-{clustered_text[:2200]}
+{mat_context[:2600]}
 """
     script = []
     if gemini_key:
@@ -789,9 +740,12 @@ Materials:
                 continue
 
     if not script:
-        script = lesson.get("fallback_script") or [
-            {"speaker": "Host_A", "text": f"Let's unpack {lesson['title']}."},
-            {"speaker": "Host_B", "text": lesson["summary"]},
+        sentences = [s.strip() for s in mat.get("text", "").split(".") if len(s.strip()) > 12]
+        script = [
+            {"speaker": "Host_A", "text": f"Let's examine the core thesis of {mat['title']}."},
+            {"speaker": "Host_B", "text": (sentences[0] + ".") if sentences else mat["title"]},
+            {"speaker": "Host_A", "text": "And what is the practical takeaway for executive leaders?"},
+            {"speaker": "Host_B", "text": (sentences[1] + ".") if len(sentences) > 1 else "Apply this framework directly to eliminate strategic friction."},
         ]
 
     if not eleven_key:
@@ -832,6 +786,64 @@ Materials:
     return {"bytes": audio_buffer.read(), "script": script, "warning": None}
 
 
+def call_socratic_sparring(
+    prompt: str,
+    history: list,
+    lesson: dict,
+    clustered_text: str,
+    profile: dict,
+    api_key: str,
+) -> str:
+    if not api_key:
+        return "⚠️ Please enter your Google AI Studio Key in the sidebar to activate Socratic sparring."
+
+    intensity = profile.get("sparring_intensity", "Contrarian Devil's Advocate (Rigor)")
+    max_tokens = 320 if profile.get("working_memory_chunking") else 800
+
+    system_instruction = f"""
+You are NEAM, an executive Socratic sparring partner for Steinbeis University / Berlin School of Creative Leadership.
+Candidate: {profile.get('name')} ({profile.get('program')}).
+Active Lesson: {lesson['title']}
+Lesson Assignment Task: {lesson['task']}
+
+STRICT SAFEGUARDS:
+1. CLOSED-LOOP GROUNDING: Base every argument strictly on the lesson materials provided below.
+2. ANTI-GHOSTWRITING: Never write the student's final answer or essay for them. Challenge weak assumptions, test logic against the lesson frameworks, and ask sharp dialectic questions.
+3. COGNITIVE CALIBRATION: Tone = {intensity}. Keep replies concise (under 140 words) with clear bullet points or bold key concepts for executive scannability.
+
+LESSON MATERIALS:
+\"\"\"{clustered_text}\"\"\"
+"""
+    contents = []
+    for m in history:
+        contents.append({"role": "user" if m["role"] == "user" else "model", "parts": [{"text": m["content"]}]})
+    contents.append({"role": "user", "parts": [{"text": prompt}]})
+
+    headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
+    payload = {
+        "contents": contents,
+        "generationConfig": {"temperature": 0.35, "maxOutputTokens": max_tokens},
+        "systemInstruction": {"parts": [{"text": system_instruction}]},
+    }
+
+    for model_path in ACTIVE_MODELS:
+        try:
+            resp = requests.post(f"{BASE_GEMINI_URL}/{model_path}:generateContent", headers=headers, json=payload, timeout=20)
+            if resp.status_code == 200:
+                return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+            elif resp.status_code in [503, 429, 500, 404]:
+                continue
+            else:
+                return f"API Error ({resp.status_code}): {resp.text[:180]}"
+        except Exception:
+            continue
+
+    return (
+        "Socratic Pushback (Closed-Loop): Your argument touches the surface, but how does it hold up against the core framework "
+        "in this lesson's uploaded readings? Identify the exact trade-off you are eliminating before finalizing your answer."
+    )
+
+
 # =========================================================
 # 1. LANDING VIEW (STUDENT vs. PROFESSOR)
 # =========================================================
@@ -855,7 +867,7 @@ if st.session_state.current_role is None:
                 <div style="font-size: 3rem; margin: 8px 0;">🎓</div>
                 <h2 style="margin-bottom: 8px;">Student</h2>
                 <p style="color: #475569; font-size: 0.92rem;">
-                    Autonomous cognitive calibration, multimodal course materials, micro-sprints, and Socratic sparring.
+                    Autonomous cognitive calibration, single-material multimodal transformation, micro-sprints, and Socratic sparring.
                 </p>
             </div>
             """,
@@ -994,6 +1006,7 @@ elif st.session_state.current_role == "student":
                     st.write("")
                     if st.button("Open Lesson →", key=f"open_{l_id}", type="primary", use_container_width=True):
                         st.session_state.selected_lesson_id = l_id
+                        st.session_state.open_full_reader_mat_id = None
                         sync_lucas_to_cohort(selected_c_id, l_id)
                         st.rerun()
 
@@ -1016,14 +1029,15 @@ elif st.session_state.current_role == "student":
                     "role": "model",
                     "time": datetime.now().strftime("%H:%M"),
                     "content": (
-                        f"Closed-loop sparring locked to **{lesson['title']}** ({len(materials)} clustered materials). "
-                        "Test your thesis premise or ask me to challenge your draft before submitting."
+                        f"Closed-loop sparring locked to **{lesson['title']}**. "
+                        "Inspect individual materials on the left, then test your thesis premise here before submitting."
                     ),
                 }
             ]
 
         if st.button("← Back to Course Syllabus", key="back_to_syllabus"):
             st.session_state.selected_lesson_id = None
+            st.session_state.open_full_reader_mat_id = None
             st.rerun()
 
         pct, thermo_color = compute_lesson_mastery(course, l_id)
@@ -1054,172 +1068,241 @@ elif st.session_state.current_role == "student":
                 unsafe_allow_html=True,
             )
 
-        rail_col, main_col = st.columns([1.35, 2.65], gap="large")
+        # Optional Expanded Full-Window Document/PDF/Video Reader Banner
+        if st.session_state.open_full_reader_mat_id:
+            open_mat = next((m for m in materials if m["id"] == st.session_state.open_full_reader_mat_id), None)
+            if open_mat:
+                with st.container(border=True):
+                    fr_h1, fr_h2 = st.columns([5, 1])
+                    with fr_h1:
+                        st.markdown(f"### 📖 Full Material Viewer: {open_mat['title']}")
+                        st.caption(f"Format: **{open_mat.get('type', 'Reading')}**")
+                    with fr_h2:
+                        if st.button("✖ Close Viewer", key="close_full_reader", use_container_width=True):
+                            st.session_state.open_full_reader_mat_id = None
+                            st.rerun()
+
+                    if open_mat.get("youtube_url"):
+                        st.info("This material is hosted on YouTube. Click below to open it directly in a new browser tab:")
+                        st.link_button("▶️ Open YouTube Video in New Window", url=open_mat["youtube_url"], type="primary")
+                        if open_mat.get("text"):
+                            st.markdown("**Lecture Notes / Summary:**")
+                            st.write(open_mat["text"])
+                    elif open_mat.get("file_bytes") and open_mat.get("mime_type", "").startswith("video/"):
+                        st.video(open_mat["file_bytes"])
+                        if open_mat.get("text"):
+                            st.write(open_mat["text"])
+                    elif open_mat.get("file_bytes") and open_mat.get("mime_type") == "application/pdf":
+                        b64_pdf = base64.b64encode(open_mat["file_bytes"]).decode("utf-8")
+                        pdf_iframe = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="520" type="application/pdf" style="border:1px solid #cbd5e1; border-radius:8px;"></iframe>'
+                        st.components.v1.html(pdf_iframe, height=535)
+                        if open_mat.get("text"):
+                            with st.expander("View Extracted Text"):
+                                st.write(open_mat["text"])
+                    else:
+                        st.markdown(
+                            f"""
+                            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:8px; padding:20px; font-size:1rem; line-height:1.6;">
+                                {open_mat.get('text', '')}
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                st.write("")
+
+        rail_col, main_col = st.columns([1.45, 2.55], gap="large")
 
         # -------------------------------------------------
-        # LEFT RAIL: PDF, VIDEO, YOUTUBE & TEXT MATERIALS
+        # LEFT RAIL: SELECT 1 MATERIAL -> VIEW / DOWNLOAD -> TRANSFORM ONLY THAT ONE
         # -------------------------------------------------
         with rail_col:
-            st.markdown("#### 📂 Lesson Materials")
-            st.caption("Assigned by professor (alphabetical). Click to review, watch, or download:")
+            st.markdown("#### 1️⃣ Select 1 Lesson Material")
+            st.caption("Choose **one** material below to inspect, open, download, or transform into a podcast/slide deck:")
 
             if not materials:
                 st.info("No materials assigned to this lesson yet.")
+            else:
+                mat_ids = [m["id"] for m in materials]
+                default_mat_id = st.session_state.selected_material_by_lesson.get(l_id)
+                if default_mat_id not in mat_ids:
+                    default_mat_id = mat_ids[0]
 
-            for idx, mat in enumerate(materials):
-                is_done = mat["id"] in st.session_state.reviewed_materials[l_id]
-                mtype = mat.get("type", "Text / Reading")
-                type_icon = "🎬" if "Video" in mtype or "YouTube" in mtype else ("📕" if "PDF" in mtype else "📄")
-                status_icon = "✅" if is_done else type_icon
+                def format_mat_label(mid: str) -> str:
+                    m_obj = next(x for x in materials if x["id"] == mid)
+                    done_mark = "✅ " if mid in st.session_state.reviewed_materials[l_id] else ""
+                    mtype = m_obj.get("type", "")
+                    t_icon = "🎬" if "Video" in mtype or "YouTube" in mtype else ("📕" if "PDF" in mtype else "📄")
+                    return f"{done_mark}{t_icon} {m_obj['title']}"
 
-                with st.expander(f"{status_icon} {mat['title']}", expanded=(idx == 0 and not is_done)):
-                    st.caption(f"Format: **{mtype}**")
+                chosen_mat_id = st.radio(
+                    "Choose single material:",
+                    options=mat_ids,
+                    index=mat_ids.index(default_mat_id),
+                    format_func=format_mat_label,
+                    label_visibility="collapsed",
+                    key=f"radio_mat_{l_id}",
+                )
+                st.session_state.selected_material_by_lesson[l_id] = chosen_mat_id
+                selected_mat = next(m for m in materials if m["id"] == chosen_mat_id)
+                is_done = chosen_mat_id in st.session_state.reviewed_materials[l_id]
 
-                    # Render YouTube Direct Redirect Button
-                    if mat.get("youtube_url"):
-                        st.write(mat.get("text", "External YouTube lecture resource."))
-                        st.link_button(
-                            "▶️ Watch on YouTube (Opens Directly)",
-                            url=mat["youtube_url"],
+                # Active Single Material Inspector Card
+                st.markdown(
+                    f"""
+                    <div class="material-viewer-card">
+                        <span class="badge-blue">Selected Material • {selected_mat.get('type', 'Reading')}</span>
+                        <h4 style="margin:4px 0 6px 0;">{selected_mat['title']}</h4>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                # Preview inside card
+                if selected_mat.get("youtube_url"):
+                    st.write(selected_mat.get("text", ""))
+                    st.link_button(
+                        "▶️ Open on YouTube (New Window)",
+                        url=selected_mat["youtube_url"],
+                        type="primary",
+                        use_container_width=True,
+                    )
+                elif selected_mat.get("file_bytes") and selected_mat.get("mime_type", "").startswith("video/"):
+                    st.video(selected_mat["file_bytes"])
+                else:
+                    snippet = selected_mat.get("text", "")
+                    st.write(snippet[:320] + ("..." if len(snippet) > 320 else ""))
+
+                # Action Row: Open Full Window | Download | Mark Reviewed
+                act1, act2, act3 = st.columns(3)
+                with act1:
+                    if st.button("🔍 Open Full View", key=f"open_view_{chosen_mat_id}", use_container_width=True):
+                        st.session_state.open_full_reader_mat_id = chosen_mat_id
+                        st.session_state.reviewed_materials[l_id].add(chosen_mat_id)
+                        sync_lucas_to_cohort(c_id, l_id)
+                        st.rerun()
+                with act2:
+                    if selected_mat.get("file_bytes"):
+                        st.download_button(
+                            "⬇️ Download",
+                            data=selected_mat["file_bytes"],
+                            file_name=selected_mat.get("filename", f"{chosen_mat_id}.bin"),
+                            mime=selected_mat.get("mime_type", "application/octet-stream"),
+                            key=f"dl_{chosen_mat_id}",
                             use_container_width=True,
                         )
-
-                    # Render Embedded Video Player if Video File Uploaded
-                    elif mat.get("file_bytes") and mat.get("mime_type", "").startswith("video/"):
-                        st.video(mat["file_bytes"])
-                        if mat.get("text"):
-                            st.caption(mat["text"])
-
-                    # Render PDF / Text Preview
-                    else:
-                        preview = mat.get("text", "")
-                        if len(preview) > 600:
-                            st.write(preview[:600] + "...")
-                        else:
-                            st.write(preview)
-
-                    b1, b2 = st.columns(2)
-                    with b1:
-                        if not is_done:
-                            if st.button("Mark Reviewed (+)", key=f"rev_{l_id}_{mat['id']}", use_container_width=True):
-                                st.session_state.reviewed_materials[l_id].add(mat["id"])
-                                sync_lucas_to_cohort(c_id, l_id)
-                                st.rerun()
-                        else:
-                            st.success("Reviewed")
-                    with b2:
-                        if mat.get("file_bytes"):
-                            st.download_button(
-                                "⬇️ Download",
-                                data=mat["file_bytes"],
-                                file_name=mat.get("filename", f"{mat['id']}.bin"),
-                                mime=mat.get("mime_type", "application/octet-stream"),
-                                key=f"dl_{l_id}_{mat['id']}",
-                                use_container_width=True,
-                            )
-                        elif not mat.get("youtube_url"):
-                            st.download_button(
-                                "⬇️ Download",
-                                data=mat.get("text", "").encode("utf-8"),
-                                file_name=mat.get("filename", f"{mat['id']}.txt"),
-                                mime="text/plain",
-                                key=f"dl_{l_id}_{mat['id']}",
-                                use_container_width=True,
-                            )
-
-            st.divider()
-            st.markdown("#### 🔄 Transform Clustered Materials")
-            st.caption(f"Clusters all **{len(materials)} lesson materials** into your sensory channel:")
-
-            transform_mode = st.radio(
-                "Sensory Channel",
-                ["🎧 Dual-Voice Podcast", "📊 Visual Slide Deck"],
-                horizontal=True,
-                label_visibility="collapsed",
-            )
-
-            if transform_mode == "🎧 Dual-Voice Podcast":
-                if st.button("Synthesize Lesson Podcast", type="primary", use_container_width=True):
-                    prog = st.empty()
-                    res = generate_podcast_audio(
-                        lesson=lesson,
-                        clustered_text=clustered_text,
-                        gemini_key=GOOGLE_API_KEY,
-                        eleven_key=ELEVENLABS_API_KEY,
-                        progress_fn=lambda msg: prog.info(msg),
-                    )
-                    st.session_state.podcast_cache[l_id] = res
-                    for m in materials:
-                        st.session_state.reviewed_materials[l_id].add(m["id"])
-                    sync_lucas_to_cohort(c_id, l_id)
-                    prog.empty()
-                    st.rerun()
-
-                pod = st.session_state.podcast_cache.get(l_id)
-                if pod:
-                    if pod.get("warning"):
-                        st.warning(pod["warning"])
-                    if pod.get("bytes"):
-                        b64 = base64.b64encode(pod["bytes"]).decode("utf-8")
-                        player_html = f"""
-                        <div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #cbd5e1;">
-                            <audio id="podPlayer" controls style="width:100%;">
-                                <source src="data:audio/mp3;base64,{b64}" type="audio/mpeg">
-                            </audio>
-                            <div style="margin-top:8px; display:flex; gap:8px;">
-                                <button onclick="document.getElementById('podPlayer').currentTime -= 10;" style="background:#0284c7; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">⏪ -10s</button>
-                                <button onclick="document.getElementById('podPlayer').currentTime += 10;" style="background:#0284c7; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">+10s ⏩</button>
-                            </div>
-                        </div>
-                        """
-                        st.components.v1.html(player_html, height=115)
-                    else:
-                        full_dialogue = " ".join([f"{t['speaker'].replace('_', ' ')} says: {t['text']}" for t in pod["script"]])
-                        safe_text = json.dumps(full_dialogue)
-                        tts_html = f"""
-                        <div style="background:#f0fdf4; padding:12px; border-radius:8px; border:1px solid #bbf7d0;">
-                            <button onclick="window.speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance({safe_text}); u.rate=1.02; window.speechSynthesis.speak(u);" style="background:#059669; color:white; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; font-weight:600;">▶️ Play Dialogue Audio</button>
-                            <button onclick="window.speechSynthesis.cancel();" style="background:#e2e8f0; color:#0f172a; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; margin-left:6px;">⏹️ Stop</button>
-                        </div>
-                        """
-                        st.components.v1.html(tts_html, height=65)
-
-                    with st.expander("View Podcast Transcript", expanded=True):
-                        for t in pod["script"]:
-                            who = "Host A (Sarah)" if t["speaker"] == "Host_A" else "Host B (George)"
-                            st.markdown(f"**{who}:** {t['text']}")
-
-            elif transform_mode == "📊 Visual Slide Deck":
-                if st.button("Generate Scannable Slides", type="primary", use_container_width=True):
-                    with st.spinner("Distilling clustered materials into visual slides..."):
-                        st.session_state.slides_cache[l_id] = generate_visual_slides_ai(
-                            lesson, materials, clustered_text, GOOGLE_API_KEY
+                    elif not selected_mat.get("youtube_url"):
+                        st.download_button(
+                            "⬇️ Download",
+                            data=selected_mat.get("text", "").encode("utf-8"),
+                            file_name=selected_mat.get("filename", f"{chosen_mat_id}.txt"),
+                            mime="text/plain",
+                            key=f"dl_{chosen_mat_id}",
+                            use_container_width=True,
                         )
-                        for m in materials:
-                            st.session_state.reviewed_materials[l_id].add(m["id"])
-                        sync_lucas_to_cohort(c_id, l_id)
-                    st.rerun()
+                with act3:
+                    if not is_done:
+                        if st.button("✅ Mark Done", key=f"rev_{chosen_mat_id}", use_container_width=True):
+                            st.session_state.reviewed_materials[l_id].add(chosen_mat_id)
+                            sync_lucas_to_cohort(c_id, l_id)
+                            st.rerun()
+                    else:
+                        st.success("Reviewed")
 
-                slides = st.session_state.slides_cache.get(l_id, [])
-                for idx_s, s in enumerate(slides, start=1):
-                    bullets_html = "".join([f"<li>{b}</li>" for b in s["bullets"]])
-                    st.markdown(
-                        f"""
-                        <div class="slide-card">
-                            <span style="color:#0284c7; font-size:0.75rem; font-weight:700;">SLIDE {idx_s} • {s['pillar']}</span>
-                            <h4 style="margin:4px 0 6px 0;">{s['title']}</h4>
-                            <p style="color:#059669; font-weight:600; font-size:0.9rem;">{s['takeaway']}</p>
-                            <ul style="font-size:0.88rem; color:#334155;">{bullets_html}</ul>
-                            <div style="font-size:0.85rem; color:#0369a1; font-style:italic; border-top:1px dashed #cbd5e1; padding-top:6px;">
-                                🥊 {s['question']}
+                st.divider()
+
+                # -------------------------------------------------
+                # STEP 2: TRANSFORM ONLY THIS SELECTED MATERIAL
+                # -------------------------------------------------
+                st.markdown("#### 2️⃣ Transform Selected Material Only")
+                st.caption(f"Generates output exclusively from: **{selected_mat['title']}**")
+
+                transform_mode = st.radio(
+                    "Sensory Channel",
+                    ["🎧 Dual-Voice Podcast", "📊 Visual Slide Deck"],
+                    horizontal=True,
+                    label_visibility="collapsed",
+                    key=f"tmode_{l_id}",
+                )
+
+                if transform_mode == "🎧 Dual-Voice Podcast":
+                    if st.button("Synthesize Podcast for This Material", type="primary", use_container_width=True, key=f"btn_pod_{chosen_mat_id}"):
+                        prog = st.empty()
+                        res = generate_single_material_podcast(
+                            mat=selected_mat,
+                            gemini_key=GOOGLE_API_KEY,
+                            eleven_key=ELEVENLABS_API_KEY,
+                            progress_fn=lambda msg: prog.info(msg),
+                        )
+                        st.session_state.material_podcast_cache[chosen_mat_id] = res
+                        st.session_state.reviewed_materials[l_id].add(chosen_mat_id)
+                        sync_lucas_to_cohort(c_id, l_id)
+                        prog.empty()
+                        st.rerun()
+
+                    pod = st.session_state.material_podcast_cache.get(chosen_mat_id)
+                    if pod:
+                        if pod.get("warning"):
+                            st.warning(pod["warning"])
+                        if pod.get("bytes"):
+                            b64 = base64.b64encode(pod["bytes"]).decode("utf-8")
+                            player_html = f"""
+                            <div style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #cbd5e1;">
+                                <audio id="podPlayer" controls style="width:100%;">
+                                    <source src="data:audio/mp3;base64,{b64}" type="audio/mpeg">
+                                </audio>
+                                <div style="margin-top:8px; display:flex; gap:8px;">
+                                    <button onclick="document.getElementById('podPlayer').currentTime -= 10;" style="background:#0284c7; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">⏪ -10s</button>
+                                    <button onclick="document.getElementById('podPlayer').currentTime += 10;" style="background:#0284c7; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">+10s ⏩</button>
+                                </div>
                             </div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                            """
+                            st.components.v1.html(player_html, height=115)
+                        else:
+                            full_dialogue = " ".join([f"{t['speaker'].replace('_', ' ')} says: {t['text']}" for t in pod["script"]])
+                            safe_text = json.dumps(full_dialogue)
+                            tts_html = f"""
+                            <div style="background:#f0fdf4; padding:12px; border-radius:8px; border:1px solid #bbf7d0;">
+                                <button onclick="window.speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance({safe_text}); u.rate=1.02; window.speechSynthesis.speak(u);" style="background:#059669; color:white; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; font-weight:600;">▶️ Play Dialogue Audio</button>
+                                <button onclick="window.speechSynthesis.cancel();" style="background:#e2e8f0; color:#0f172a; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; margin-left:6px;">⏹️ Stop</button>
+                            </div>
+                            """
+                            st.components.v1.html(tts_html, height=65)
+
+                        with st.expander("View Podcast Transcript", expanded=True):
+                            for t in pod["script"]:
+                                who = "Host A (Sarah)" if t["speaker"] == "Host_A" else "Host B (George)"
+                                st.markdown(f"**{who}:** {t['text']}")
+
+                elif transform_mode == "📊 Visual Slide Deck":
+                    if st.button("Generate Slides for This Material", type="primary", use_container_width=True, key=f"btn_sld_{chosen_mat_id}"):
+                        with st.spinner(f"Distilling '{selected_mat['title']}' into visual slides..."):
+                            st.session_state.material_slides_cache[chosen_mat_id] = generate_single_material_slides_ai(
+                                selected_mat, GOOGLE_API_KEY
+                            )
+                            st.session_state.reviewed_materials[l_id].add(chosen_mat_id)
+                            sync_lucas_to_cohort(c_id, l_id)
+                        st.rerun()
+
+                    slides = st.session_state.material_slides_cache.get(chosen_mat_id, [])
+                    for idx_s, s in enumerate(slides, start=1):
+                        bullets_html = "".join([f"<li>{b}</li>" for b in s["bullets"]])
+                        st.markdown(
+                            f"""
+                            <div class="slide-card">
+                                <span style="color:#0284c7; font-size:0.75rem; font-weight:700;">SLIDE {idx_s} • {s['pillar']}</span>
+                                <h4 style="margin:4px 0 6px 0;">{s['title']}</h4>
+                                <p style="color:#059669; font-weight:600; font-size:0.9rem;">{s['takeaway']}</p>
+                                <ul style="font-size:0.88rem; color:#334155;">{bullets_html}</ul>
+                                <div style="font-size:0.85rem; color:#0369a1; font-style:italic; border-top:1px dashed #cbd5e1; padding-top:6px;">
+                                    🥊 {s['question']}
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
 
         # -------------------------------------------------
-        # RIGHT WORKSPACE: TASK + ANSWER (WITH FILE UPLOAD) + SPARRING
+        # RIGHT WORKSPACE: TASK + ANSWER + SPARRING
         # -------------------------------------------------
         with main_col:
             st.markdown(
@@ -1318,7 +1401,7 @@ elif st.session_state.current_role == "student":
                             "text": ans_text,
                             "submitted": True,
                             "attachments": saved_attachments,
-                            "evaluated": False,  # Lights up Lucas's name for the Professor!
+                            "evaluated": False,
                             "submitted_at": datetime.now().strftime("Today at %H:%M CET"),
                         }
                         sync_lucas_to_cohort(c_id, l_id)
@@ -1332,7 +1415,7 @@ elif st.session_state.current_role == "student":
                 <div class="workspace-box">
                     <span class="badge-blue">3 • Socratic Sparring Box (Closed-Loop)</span>
                     <p style="margin:2px 0 0 0; font-size:0.88rem; color:#334155;">
-                        Grounded strictly in this lesson's uploaded PDFs, videos, and readings. Anti-ghostwriting active.
+                        Grounded strictly in this lesson's uploaded materials. Anti-ghostwriting active.
                     </p>
                 </div>
                 """,
@@ -1373,9 +1456,6 @@ elif st.session_state.current_role == "student":
 elif st.session_state.current_role == "professor":
     prof = st.session_state.professor_profile
 
-    # -----------------------------------------------------
-    # 3A. PROFESSOR HOME: FACULTY INFO + COURSE PORTFOLIO
-    # -----------------------------------------------------
     if st.session_state.selected_prof_course_id is None:
         if st.button("← Back to Landing", key="back_prof_landing"):
             st.session_state.current_role = None
@@ -1411,9 +1491,6 @@ elif st.session_state.current_role == "professor":
                         st.session_state.selected_prof_course_id = cid
                         st.rerun()
 
-    # -----------------------------------------------------
-    # 3B. INSIDE A COURSE
-    # -----------------------------------------------------
     else:
         cid = st.session_state.selected_prof_course_id
         course = st.session_state.courses[cid]
@@ -1436,22 +1513,19 @@ elif st.session_state.current_role == "professor":
             audit_label
         ])
 
-        # -------------------------------------------------
-        # TAB 1: LESSONS (LEFT) & MULTIMODAL MATERIALS (RIGHT)
-        # -------------------------------------------------
         with tab_builder:
             col_lessons, col_materials = st.columns([1.25, 1.45], gap="large")
 
             with col_lessons:
                 st.markdown("### 📘 Course's Lessons")
-                st.caption("Each lesson clusters all PDFs, videos, YouTube links, and readings assigned from the right:")
+                st.caption("Each lesson makes all assigned PDFs, videos, YouTube links, and readings available to students:")
 
                 for l_id, lesson in course["lessons"].items():
                     assigned_mats = get_lesson_materials(course, l_id)
                     with st.container(border=True):
                         st.markdown(f"#### {lesson['title']}")
                         st.caption(lesson["summary"])
-                        st.markdown(f"**Clustered Materials ({len(assigned_mats)}):**")
+                        st.markdown(f"**Assigned Materials ({len(assigned_mats)}):**")
                         if assigned_mats:
                             for am in assigned_mats:
                                 icon = "🎬" if "Video" in am["type"] or "YouTube" in am["type"] else ("📕" if "PDF" in am["type"] else "📄")
@@ -1498,7 +1572,7 @@ elif st.session_state.current_role == "professor":
                             up_file = st.file_uploader("Upload TXT/MD File (Optional)", type=["txt", "md"], key=f"up_txt_{cid}")
 
                         new_m_text = st.text_area(
-                            "Summary / Key Notes (Used by AI to cluster into Podcast, Slides & Sparring)",
+                            "Summary / Key Notes (Used when transforming this material into Podcast or Slides)",
                             height=100,
                             key=f"new_mtxt_{cid}",
                         )
@@ -1582,14 +1656,9 @@ elif st.session_state.current_role == "professor":
                                     orig_m["assigned_lessons"] = new_assigned
                             st.rerun()
 
-        # -------------------------------------------------
-        # TAB 2: STUDENT PROOF-OF-WORK & RUBRIC CONSOLE
-        # (MATCHING YOUR SKETCH & LAPTOP SCREENSHOTS)
-        # -------------------------------------------------
         with tab_audit:
             roster_col, dossier_col = st.columns([1.15, 2.35], gap="large")
 
-            # LEFT COLUMN: ALPHABETICAL STUDENT LIST + HIGHLIGHT + THERMOMETER
             with roster_col:
                 st.markdown("### 👥 Enrolled Students")
                 st.caption("Sorted alphabetically (A–Z). Highlighted names have ungraded submissions:")
@@ -1598,7 +1667,6 @@ elif st.session_state.current_role == "professor":
                     [s for s in st.session_state.cohort_records.values() if s.get("course_id") == cid],
                     key=lambda x: x["name"].lower(),
                 )
-                # Map back to student IDs
                 id_by_name = {v["name"]: k for k, v in st.session_state.cohort_records.items() if v.get("course_id") == cid}
 
                 for stu in cohort_list:
@@ -1642,14 +1710,12 @@ elif st.session_state.current_role == "professor":
                         st.session_state.selected_audit_student_id = sid
                         st.rerun()
 
-            # RIGHT COLUMN: PROOF-OF-WORK VERIFICATION DOSSIER & RUBRIC CONSOLE
             with dossier_col:
                 active_sid = st.session_state.selected_audit_student_id
                 if active_sid not in st.session_state.cohort_records:
                     active_sid = next(iter(st.session_state.cohort_records.keys()))
                 stu = st.session_state.cohort_records[active_sid]
 
-                # Build Markdown Dossier for Export
                 dossier_md = f"""# PROOF-OF-WORK VERIFICATION • {stu['hash']}
 **Candidate:** {stu['name']}
 **Lesson:** {stu['lesson_title']}
@@ -1680,7 +1746,6 @@ elif st.session_state.current_role == "professor":
                         use_container_width=True,
                     )
 
-                # 1. Submitted Answer & Student Uploaded Attachments
                 st.markdown(
                     f"""
                     <div class="dossier-card">
@@ -1712,7 +1777,6 @@ elif st.session_state.current_role == "professor":
                                 key=f"prof_dl_{active_sid}_{att_idx}",
                             )
 
-                # 2. Recorded Voice Interactions
                 v_notes = stu.get("voice_notes", [])
                 st.markdown(f"**🎙️ 2. RECORDED VOICE INTERACTIONS ({len(v_notes)} AUDIO NOTES):**")
                 if v_notes:
@@ -1732,7 +1796,6 @@ elif st.session_state.current_role == "professor":
                 else:
                     st.caption("No voice notes recorded in this session.")
 
-                # 3. Complete Socratic Sparring Dialogue
                 st.markdown("**🥊 3. COMPLETE SOCRATIC SPARRING DIALOGUE (Anti-Ghostwriting: 100% Student Reasoning):**")
                 dialogue = stu.get("sparring_dialogue", [])
                 if dialogue:
@@ -1768,7 +1831,6 @@ elif st.session_state.current_role == "professor":
 
                 st.divider()
 
-                # 4. Faculty Rubric Grading Console
                 rubric = stu.get("rubric", {"problem_clarification": 4.0, "theoretical_grounding": 4.0, "strategic_defensibility": 4.0, "feedback": ""})
                 r1, r2, r3 = st.columns(3)
                 with r1:
