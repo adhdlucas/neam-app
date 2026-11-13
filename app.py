@@ -65,17 +65,61 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# Endpoints & Voice Setup (Verified Active Models)
+# Endpoints & Voice Setup
 # ---------------------------------------------------------
-GEMINI_ENDPOINTS = [
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
-]
+BASE_GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta"
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 
-VOICE_HOST_A = "21m00Tcm4TlvDq8ikWAM"  # Rachel
-VOICE_HOST_B = "pNInz6obpgDQGcFmaJgB"  # Adam
+VOICE_HOST_A = "21m00Tcm4TlvDq8ikWAM"  # Rachel (Framing Host)
+VOICE_HOST_B = "pNInz6obpgDQGcFmaJgB"  # Adam (First-Principles Host)
+
+# ---------------------------------------------------------
+# Dynamic Model Discovery (Eliminates 404 Model Errors)
+# ---------------------------------------------------------
+@st.cache_data(ttl=600, show_spinner=False)
+def get_available_gemini_models(api_key: str) -> List[str]:
+    """Queries ListModels with the user's API key to find active generateContent models."""
+    fallback_order = [
+        "models/gemini-3.8-flash",
+        "models/gemini-3.5-flash",
+        "models/gemini-3.0-flash",
+        "models/gemini-2.5-flash-preview-05-20",
+        "models/gemini-2.0-flash",
+    ]
+    if not api_key:
+        return fallback_order
+
+    try:
+        resp = requests.get(
+            f"{BASE_GEMINI_URL}/models",
+            headers={"x-goog-api-key": api_key.strip()},
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            models_data = resp.json().get("models", [])
+            valid_flash = []
+            valid_other = []
+            for m in models_data:
+                name = m.get("name", "")
+                methods = m.get("supportedGenerationMethods", [])
+                if "generateContent" in methods and "gemini" in name:
+                    # Exclude experimental/embedding/tts/image-only variants
+                    if any(skip in name for skip in ["embedding", "imagen", "veo", "aqa", "tts", "audio"]):
+                        continue
+                    if "flash" in name:
+                        valid_flash.append(name)
+                    else:
+                        valid_other.append(name)
+            # Sort descending so newest version (e.g., 3.8) comes first
+            valid_flash.sort(reverse=True)
+            valid_other.sort(reverse=True)
+            combined = valid_flash + valid_other
+            if combined:
+                return combined
+    except Exception:
+        pass
+
+    return fallback_order
 
 # ---------------------------------------------------------
 # Session State Initialization
@@ -163,13 +207,17 @@ with st.sidebar:
         "Google AI Studio Key",
         value=os.getenv("GEMINI_API_KEY", ""),
         type="password",
-        help="Target: models/gemini-3.8-flash (AQ...)",
-    )
+        help="Paste your Tier 1 key (...djCg)",
+    ).strip()
     ELEVENLABS_API_KEY = st.text_input(
         "ElevenLabs API Key",
         value=os.getenv("ELEVENLABS_API_KEY", ""),
         type="password",
-    )
+    ).strip()
+
+    if GOOGLE_API_KEY:
+        detected = get_available_gemini_models(GOOGLE_API_KEY)
+        st.caption(f"🟢 Active Model Target: `{detected[0]}`")
 
     if st.session_state.current_role:
         st.divider()
@@ -223,9 +271,11 @@ STRICT ARCHITECTURAL SAFEGUARDS:
         "systemInstruction": {"parts": [{"text": system_instruction}]},
     }
 
-    last_err = ""
-    for endpoint in GEMINI_ENDPOINTS:
-        model_name = endpoint.split("/models/")[1].split(":")[0]
+    errors = []
+    models_to_try = get_available_gemini_models(api_key)[:3]
+
+    for model_path in models_to_try:
+        endpoint = f"{BASE_GEMINI_URL}/{model_path}:generateContent"
         for attempt in range(3):
             try:
                 resp = requests.post(endpoint, headers=headers, json=payload, timeout=45)
@@ -234,24 +284,25 @@ STRICT ARCHITECTURAL SAFEGUARDS:
                     return data["candidates"][0]["content"]["parts"][0]["text"]
                 elif resp.status_code in [503, 429, 500]:
                     time.sleep((2 ** attempt) * 1.5)
-                    last_err = f"{model_name} ({resp.status_code})"
+                    errors.append(f"{model_path}: {resp.status_code}")
                     continue
                 else:
-                    last_err = f"{model_name} ({resp.status_code})"
+                    errors.append(f"{model_path}: {resp.status_code} - {resp.text[:150]}")
                     break
             except requests.exceptions.RequestException as e:
-                last_err = f"{model_name}: {str(e)}"
+                errors.append(f"{model_path}: {str(e)}")
                 time.sleep(1.5)
 
-    return f"Service temporarily busy ({last_err}). Please retry in a moment."
+    return f"Service temporarily unavailable. Details: {' | '.join(errors)}"
 
 # ---------------------------------------------------------
-# Multimodal Pipeline: Podcast Audio with Resilient Cascade
+# Multimodal Pipeline: Podcast Audio with Dynamic Model Discovery
 # ---------------------------------------------------------
 def generate_podcast_pipeline(material_text: str, gemini_key: str, eleven_key: str, progress_fn=None) -> Tuple[bytes, List[Dict]]:
     if progress_fn:
-        progress_fn("Generating dialectic podcast script...")
+        progress_fn("Discovering active Gemini models on your Tier 1 key...")
 
+    models_to_try = get_available_gemini_models(gemini_key)[:3]
     processed_text = material_text[:2500] if len(material_text) > 2500 else material_text
 
     script_prompt = f"""
@@ -278,14 +329,14 @@ Material:
     }
 
     script = None
-    last_err = ""
+    error_log = []
 
-    # Try gemini-3.8-flash, fall back to gemini-2.0-flash / 1.5-flash
-    for endpoint in GEMINI_ENDPOINTS:
-        model_name = endpoint.split("/models/")[1].split(":")[0]
-
+    for model_path in models_to_try:
+        endpoint = f"{BASE_GEMINI_URL}/{model_path}:generateContent"
         for attempt in range(3):
             try:
+                if progress_fn:
+                    progress_fn(f"Generating script with {model_path} (attempt {attempt + 1}/3)...")
                 resp = requests.post(endpoint, headers=headers, json=payload, timeout=60)
                 if resp.status_code == 200:
                     raw_content = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
@@ -294,21 +345,21 @@ Material:
                 elif resp.status_code in (503, 429, 500):
                     wait = (2 ** attempt) * 2.0
                     if progress_fn:
-                        progress_fn(f"{model_name} busy (503). Retrying in {int(wait)}s...")
+                        progress_fn(f"{model_path} busy ({resp.status_code}). Retrying in {int(wait)}s...")
                     time.sleep(wait)
-                    last_err = f"{model_name}: {resp.status_code} - {resp.text}"
+                    error_log.append(f"{model_path} -> {resp.status_code}")
                     continue
                 else:
-                    last_err = f"{model_name}: {resp.status_code} - {resp.text}"
+                    error_log.append(f"{model_path} -> {resp.status_code}: {resp.text[:180]}")
                     break
             except requests.exceptions.RequestException as e:
-                last_err = f"{model_name}: {str(e)}"
+                error_log.append(f"{model_path} -> {str(e)}")
                 time.sleep(1.5)
         if script:
             break
 
     if not script:
-        raise RuntimeError(f"Script generation failed across endpoints. Last error: {last_err}")
+        raise RuntimeError(f"Script generation failed. Trace: {' | '.join(error_log)}")
 
     audio_buffer = io.BytesIO()
     total_turns = len(script)
