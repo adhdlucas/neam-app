@@ -122,7 +122,7 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# High-Throughput API Configuration & Free-Tier ElevenLabs Voices
+# High-Throughput API Configuration & Free-Tier Voices
 # ---------------------------------------------------------
 BASE_GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta"
 ACTIVE_MODELS = [
@@ -133,15 +133,14 @@ ACTIVE_MODELS = [
 ]
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 
-# Default ElevenLabs Premade Voices (Allowed on Free Tier API)
 VOICE_HOST_A = "EXAVITQu4vr4xnSDxMaL"  # Sarah (Default Premade)
 VOICE_HOST_B = "JBFqnCBsd6RMkjVDRZzb"  # George (Default Premade)
 
 # ---------------------------------------------------------
-# Session State & Closed-Loop Course Data Model
+# Session State & Multi-Course Data Model
 # ---------------------------------------------------------
 if "current_role" not in st.session_state:
-    st.session_state.current_role = None
+    st.session_state.current_role = None  # None | "student" | "professor"
 
 if "student_profile" not in st.session_state:
     st.session_state.student_profile = {
@@ -154,105 +153,156 @@ if "student_profile" not in st.session_state:
         "sparring_intensity": "Contrarian Devil's Advocate (Rigor)",
     }
 
+if "professor_profile" not in st.session_state:
+    st.session_state.professor_profile = {
+        "name": "Prof. Dr. Mario Vaupel",
+        "title": "CEO & Professor of Sustainable Leadership • Steinbeis University Berlin",
+    }
+
+if "selected_student_course_id" not in st.session_state:
+    st.session_state.selected_student_course_id = "CRS-01"
+
 if "selected_lesson_id" not in st.session_state:
     st.session_state.selected_lesson_id = None
 
-if "course_data" not in st.session_state:
-    st.session_state.course_data = {
-        "course_name": "Strategic Alignment & Creative Leadership",
-        "professor": "Prof. Dr. Mario Vaupel",
-        "lessons": {
-            "LES-01": {
-                "title": "Lesson 1: Value Innovation & Blue Ocean Strategy",
-                "summary": "Breaking the value-cost trade-off using the Strategy Canvas and the Four Actions Framework (ERRC Grid).",
-                "task": (
-                    "Identify one entrenched industry assumption in your executive domain. Using the Four Actions Framework "
-                    "(Eliminate, Reduce, Raise, Create), formulate a strategic thesis explaining how eliminating that factor "
-                    "lowers cost structure while unlocking uncontested buyer value."
-                ),
-                "materials": [
-                    {
-                        "id": "MAT-101",
-                        "title": "Kim & Mauborgne — Value Innovation Core",
-                        "type": "Core Reading",
-                        "filename": "Blue_Ocean_Value_Innovation.txt",
-                        "text": (
-                            "Blue Ocean Strategy challenges companies to break out of red oceans of bloody competition "
-                            "by creating uncontested market space that makes the competition irrelevant. Instead of choosing "
-                            "between low cost and high differentiation, Value Innovation pursues both simultaneously."
-                        ),
-                    },
-                    {
-                        "id": "MAT-102",
-                        "title": "The Four Actions Framework (ERRC Grid)",
-                        "type": "Diagnostic Tool",
-                        "filename": "ERRC_Framework_Guide.txt",
-                        "text": (
-                            "The Four Actions Framework asks four key questions to challenge an industry's strategic logic: "
-                            "1) Which factors that the industry takes for granted should be Eliminated? "
-                            "2) Which factors should be Reduced well below the industry standard? "
-                            "3) Which factors should be Raised well above the industry standard? "
-                            "4) Which factors should be Created that the industry has never offered?"
-                        ),
-                    },
-                    {
-                        "id": "MAT-103",
-                        "title": "Executive Education Red Ocean Case",
-                        "type": "Lecture Note",
-                        "filename": "Executive_Education_Case.txt",
-                        "text": (
-                            "In executive education, traditional monomodal lecturing represents a high-overhead red ocean "
-                            "that creates cognitive overload for neurodivergent leaders. Closed-loop multimodal scaffolding "
-                            "eliminates passive friction while creating active dialectic proof-of-work."
-                        ),
-                    },
-                ],
-                "fallback_script": [
-                    {"speaker": "Host_A", "text": "Most executives assume higher strategic rigor requires higher cost. Why does Value Innovation reject that?"},
-                    {"speaker": "Host_B", "text": "Because competing on existing factors traps you in a red ocean. Eliminating low-value industry norms cuts cost while raising differentiation."},
-                    {"speaker": "Host_A", "text": "So the ERRC Grid isn't just brainstorming—it's a structural filter."},
-                    {"speaker": "Host_B", "text": "Exactly. By forcing simultaneous elimination and creation, you build a value curve competitors cannot imitate."}
-                ],
+if "selected_prof_course_id" not in st.session_state:
+    st.session_state.selected_prof_course_id = None
+
+if "courses" not in st.session_state:
+    st.session_state.courses = {
+        "CRS-01": {
+            "course_name": "Strategic Alignment & Creative Leadership",
+            "code": "EMBA-601",
+            "description": "Value Innovation, Blue Ocean Strategy, and Creating Shared Value (CSV) for executive transformation.",
+            "lessons": {
+                "LES-01": {
+                    "title": "Lesson 1: Value Innovation & Blue Ocean Strategy",
+                    "summary": "Breaking the value-cost trade-off using the Strategy Canvas and the Four Actions Framework (ERRC Grid).",
+                    "task": (
+                        "Identify one entrenched industry assumption in your executive domain. Using the Four Actions Framework "
+                        "(Eliminate, Reduce, Raise, Create), formulate a strategic thesis explaining how eliminating that factor "
+                        "lowers cost structure while unlocking uncontested buyer value."
+                    ),
+                    "fallback_script": [
+                        {"speaker": "Host_A", "text": "Most executives assume higher strategic rigor requires higher cost. Why does Value Innovation reject that?"},
+                        {"speaker": "Host_B", "text": "Because competing on existing factors traps you in a red ocean. Eliminating low-value industry norms cuts cost while raising differentiation."},
+                        {"speaker": "Host_A", "text": "So the ERRC Grid isn't just brainstorming—it's a structural filter."},
+                        {"speaker": "Host_B", "text": "Exactly. By forcing simultaneous elimination and creation, you build a value curve competitors cannot imitate."}
+                    ],
+                },
+                "LES-02": {
+                    "title": "Lesson 2: Creating Shared Value (CSV) & Sustainable Leadership",
+                    "summary": "Reconnecting company success with social progress beyond traditional CSR philanthropy.",
+                    "task": (
+                        "Contrast Corporate Social Responsibility (CSR) with Porter & Kramer's Creating Shared Value (CSV). "
+                        "Propose one value-chain reconception in your organization that generates measurable economic profit "
+                        "directly through solving a societal or environmental bottleneck."
+                    ),
+                    "fallback_script": [
+                        {"speaker": "Host_A", "text": "Why do Porter and Kramer argue that traditional CSR fails to transform core business strategy?"},
+                        {"speaker": "Host_B", "text": "Because CSR sits at the margin as a reputation cost center. Shared Value embeds societal impact directly into the profit engine."},
+                        {"speaker": "Host_A", "text": "And that happens by reconceiving products, value chain productivity, or local clusters."},
+                        {"speaker": "Host_B", "text": "Precisely. When social progress drives operational efficiency, sustainability becomes self-funding."}
+                    ],
+                },
             },
-            "LES-02": {
-                "title": "Lesson 2: Creating Shared Value (CSV) & Sustainable Leadership",
-                "summary": "Reconnecting company success with social progress beyond traditional CSR philanthropy.",
-                "task": (
-                    "Contrast Corporate Social Responsibility (CSR) with Porter & Kramer's Creating Shared Value (CSV). "
-                    "Propose one value-chain reconception in your organization that generates measurable economic profit "
-                    "directly through solving a societal or environmental bottleneck."
-                ),
-                "materials": [
-                    {
-                        "id": "MAT-201",
-                        "title": "Porter & Kramer — Shared Value Foundation",
-                        "type": "Core Reading",
-                        "filename": "Porter_Kramer_CSV.txt",
-                        "text": (
-                            "Creating Shared Value (CSV) focuses on policies and operating practices that enhance the competitiveness "
-                            "of a company while simultaneously advancing the economic and social conditions in the communities in which "
-                            "it operates. Unlike CSR, which is peripheral and driven by reputation, CSV is integral to profitability."
-                        ),
-                    },
-                    {
-                        "id": "MAT-202",
-                        "title": "Three Pillars of Shared Value Execution",
-                        "type": "Framework",
-                        "filename": "Three_Pillars_CSV.txt",
-                        "text": (
-                            "Companies can create shared value in three distinct ways: 1) Reconceiving products and markets to meet "
-                            "underserved societal needs; 2) Redefining productivity in the value chain (energy use, logistics, resource efficiency); "
-                            "and 3) Enabling local cluster development around the company's operational hubs."
-                        ),
-                    },
-                ],
-                "fallback_script": [
-                    {"speaker": "Host_A", "text": "Why do Porter and Kramer argue that traditional CSR fails to transform core business strategy?"},
-                    {"speaker": "Host_B", "text": "Because CSR sits at the margin as a reputation cost center. Shared Value embeds societal impact directly into the profit engine."},
-                    {"speaker": "Host_A", "text": "And that happens by reconceiving products, value chain productivity, or local clusters."},
-                    {"speaker": "Host_B", "text": "Precisely. When social progress drives operational efficiency, sustainability becomes self-funding."}
-                ],
+            # Course Material Repository (each material maps to 1 or more lesson IDs)
+            "materials_repo": [
+                {
+                    "id": "MAT-101",
+                    "title": "Blue Ocean Strategy — Value Innovation Core (Kim & Mauborgne)",
+                    "type": "Core Reading",
+                    "filename": "Blue_Ocean_Value_Innovation.txt",
+                    "assigned_lessons": ["LES-01"],
+                    "text": (
+                        "Blue Ocean Strategy challenges companies to break out of red oceans of bloody competition "
+                        "by creating uncontested market space that makes the competition irrelevant. Instead of choosing "
+                        "between low cost and high differentiation, Value Innovation pursues both simultaneously."
+                    ),
+                },
+                {
+                    "id": "MAT-103",
+                    "title": "Executive Education Red Ocean Case",
+                    "type": "Lecture Note",
+                    "filename": "Executive_Education_Case.txt",
+                    "assigned_lessons": ["LES-01"],
+                    "text": (
+                        "In executive education, traditional monomodal lecturing represents a high-overhead red ocean "
+                        "that creates cognitive overload for neurodivergent leaders. Closed-loop multimodal scaffolding "
+                        "eliminates passive friction while creating active dialectic proof-of-work."
+                    ),
+                },
+                {
+                    "id": "MAT-102",
+                    "title": "Four Actions Framework (ERRC Diagnostic Grid)",
+                    "type": "Diagnostic Tool",
+                    "filename": "ERRC_Framework_Guide.txt",
+                    "assigned_lessons": ["LES-01"],
+                    "text": (
+                        "The Four Actions Framework asks four key questions to challenge an industry's strategic logic: "
+                        "1) Which factors that the industry takes for granted should be Eliminated? "
+                        "2) Which factors should be Reduced well below the industry standard? "
+                        "3) Which factors should be Raised well above the industry standard? "
+                        "4) Which factors should be Created that the industry has never offered?"
+                    ),
+                },
+                {
+                    "id": "MAT-201",
+                    "title": "Shared Value Foundation (Porter & Kramer)",
+                    "type": "Core Reading",
+                    "filename": "Porter_Kramer_CSV.txt",
+                    "assigned_lessons": ["LES-02"],
+                    "text": (
+                        "Creating Shared Value (CSV) focuses on policies and operating practices that enhance the competitiveness "
+                        "of a company while simultaneously advancing the economic and social conditions in the communities in which "
+                        "it operates. Unlike CSR, which is peripheral and driven by reputation, CSV is integral to profitability."
+                    ),
+                },
+                {
+                    "id": "MAT-202",
+                    "title": "Three Pillars of Shared Value Execution",
+                    "type": "Framework",
+                    "filename": "Three_Pillars_CSV.txt",
+                    "assigned_lessons": ["LES-02"],
+                    "text": (
+                        "Companies can create shared value in three distinct ways: 1) Reconceiving products and markets to meet "
+                        "underserved societal needs; 2) Redefining productivity in the value chain (energy use, logistics, resource efficiency); "
+                        "and 3) Enabling local cluster development around the company's operational hubs."
+                    ),
+                },
+            ],
+        },
+        "CRS-02": {
+            "course_name": "Organizational Transformation & Creative Governance",
+            "code": "EMBA-604",
+            "description": "Leading creative teams, neuroinclusive organizational design, and change management.",
+            "lessons": {
+                "LES-201": {
+                    "title": "Lesson 1: Neuroinclusive Executive Architecture",
+                    "summary": "Designing high-autonomy workflows that leverage divergent cognitive styles.",
+                    "task": (
+                        "Audit one recurring decision workflow in your organization and propose two structural redesigns "
+                        "that eliminate working-memory bottlenecks while preserving strategic accountability."
+                    ),
+                    "fallback_script": [
+                        {"speaker": "Host_A", "text": "Why do conventional corporate workflows burn out high-performing creative thinkers?"},
+                        {"speaker": "Host_B", "text": "Because they optimize for uniform compliance rather than cognitive clarity and focused execution sprints."},
+                    ],
+                },
             },
+            "materials_repo": [
+                {
+                    "id": "MAT-301",
+                    "title": "Cognitive Load & Executive Decision Architecture",
+                    "type": "Core Reading",
+                    "filename": "Cognitive_Load_Governance.txt",
+                    "assigned_lessons": ["LES-201"],
+                    "text": (
+                        "High-performing organizations reduce extraneous cognitive load by chunking complex strategic briefs "
+                        "into clear milestones, multimodal summaries, and structured dialectic checkpoints."
+                    ),
+                },
+            ],
         },
     }
 
@@ -278,7 +328,7 @@ if "proof_of_work_log" not in st.session_state:
     st.session_state.proof_of_work_log = []
 
 # ---------------------------------------------------------
-# Sidebar: Engine Gateway & Navigation
+# Sidebar: Engine Gateway
 # ---------------------------------------------------------
 with st.sidebar:
     st.markdown("### ⚙️ Engine Gateway")
@@ -297,23 +347,19 @@ with st.sidebar:
     if GOOGLE_API_KEY:
         st.caption(f"🟢 Primary LLM: `{ACTIVE_MODELS[0]}`")
 
-    if st.session_state.current_role:
-        st.divider()
-        if st.session_state.current_role == "student" and st.session_state.selected_lesson_id:
-            if st.button("← Back to Course Syllabus", use_container_width=True):
-                st.session_state.selected_lesson_id = None
-                st.rerun()
-        if st.button("🏠 Switch Role (Landing)", use_container_width=True):
-            st.session_state.current_role = None
-            st.session_state.selected_lesson_id = None
-            st.rerun()
-
 # ---------------------------------------------------------
 # Helper Functions
 # ---------------------------------------------------------
-def compute_lesson_mastery(lesson_id: str, lesson: dict) -> Tuple[int, str]:
-    total_mats = max(len(lesson.get("materials", [])), 1)
-    reviewed_count = len(st.session_state.reviewed_materials.get(lesson_id, set()))
+def get_lesson_materials(course: dict, lesson_id: str) -> List[Dict]:
+    """Returns all materials in the course repository assigned to lesson_id (sorted alphabetically)."""
+    mats = [m for m in course.get("materials_repo", []) if lesson_id in m.get("assigned_lessons", [])]
+    return sorted(mats, key=lambda x: x["title"].lower())
+
+
+def compute_lesson_mastery(course: dict, lesson_id: str) -> Tuple[int, str]:
+    lesson_mats = get_lesson_materials(course, lesson_id)
+    total_mats = max(len(lesson_mats), 1)
+    reviewed_count = len([m for m in lesson_mats if m["id"] in st.session_state.reviewed_materials.get(lesson_id, set())])
     mat_score = (reviewed_count / total_mats) * 50.0
 
     sprints = st.session_state.micro_sprints.get(lesson_id, [])
@@ -331,9 +377,11 @@ def compute_lesson_mastery(lesson_id: str, lesson: dict) -> Tuple[int, str]:
     return total, color
 
 
-def cluster_lesson_materials(lesson: dict) -> str:
+def cluster_lesson_materials(materials: List[Dict]) -> str:
+    if not materials:
+        return "No materials currently assigned to this lesson."
     blocks = []
-    for idx, m in enumerate(lesson.get("materials", []), start=1):
+    for idx, m in enumerate(materials, start=1):
         blocks.append(f"[Material {idx}: {m['title']} ({m['type']})]\n{m['text']}")
     return "\n\n".join(blocks)
 
@@ -380,13 +428,13 @@ Context: {clustered_text[:1200]}
     return default_sprints
 
 
-def generate_visual_slides_ai(lesson: dict, clustered_text: str, api_key: str) -> List[Dict]:
+def generate_visual_slides_ai(lesson: dict, materials: List[Dict], clustered_text: str, api_key: str) -> List[Dict]:
     fallback_slides = [
         {
             "pillar": "CORE PREMISE",
             "title": lesson["title"],
             "takeaway": lesson["summary"],
-            "bullets": [m["title"] for m in lesson.get("materials", [])],
+            "bullets": [m["title"] for m in materials] or ["Core Lesson Framework"],
             "question": "Which assumption in this lesson challenges your current leadership practice most?",
         }
     ]
@@ -621,7 +669,7 @@ if st.session_state.current_role is None:
                 <div style="font-size: 3rem; margin: 8px 0;">🏛️</div>
                 <h2 style="margin-bottom: 8px;">Professor</h2>
                 <p style="color: #475569; font-size: 0.92rem;">
-                    Upload lesson materials, define strategic tasks, and audit student Proof-of-Work sparring logs.
+                    Manage courses, upload & assign lesson materials, and audit student Proof-of-Work sparring logs.
                 </p>
             </div>
             """,
@@ -639,7 +687,14 @@ if st.session_state.current_role is None:
 elif st.session_state.current_role == "student":
     profile = st.session_state.student_profile
 
+    # -----------------------------------------------------
+    # 2A. FIRST-TIME AUTONOMOUS CALIBRATION GATE
+    # -----------------------------------------------------
     if not profile["onboarded"]:
+        if st.button("← Back to Landing", key="back_cal_landing"):
+            st.session_state.current_role = None
+            st.rerun()
+
         st.markdown("## 🧠 Autonomous Cognitive Calibration")
         st.info("First-time setup: Calibrate NEAM's executive scaffolding to your cognitive processing style before entering your course.")
 
@@ -677,7 +732,16 @@ elif st.session_state.current_role == "student":
                 })
                 st.rerun()
 
+    # -----------------------------------------------------
+    # 2B. STUDENT COURSE & SYLLABUS HOME (WITH BACK BUTTON)
+    # -----------------------------------------------------
     elif st.session_state.selected_lesson_id is None:
+        nav_back, nav_sp = st.columns([1.4, 6])
+        with nav_back:
+            if st.button("← Back to Landing", key="back_stu_landing", use_container_width=True):
+                st.session_state.current_role = None
+                st.rerun()
+
         h_avatar, h_info, h_cal = st.columns([0.7, 5, 1.5])
         with h_avatar:
             st.markdown(
@@ -695,20 +759,30 @@ elif st.session_state.current_role == "student":
 
         st.divider()
 
-        course = st.session_state.course_data
-        st.markdown(f"<span class='badge-green'>Active MBA Course</span>", unsafe_allow_html=True)
+        # Course Selector if enrolled in multiple courses
+        course_ids = list(st.session_state.courses.keys())
+        selected_c_id = st.selectbox(
+            "Enrolled MBA Course:",
+            options=course_ids,
+            index=course_ids.index(st.session_state.selected_student_course_id),
+            format_func=lambda cid: f"{st.session_state.courses[cid]['code']} — {st.session_state.courses[cid]['course_name']}",
+        )
+        st.session_state.selected_student_course_id = selected_c_id
+        course = st.session_state.courses[selected_c_id]
+
+        st.markdown(f"<span class='badge-green'>Active MBA Syllabus</span>", unsafe_allow_html=True)
         st.markdown(f"## {course['course_name']}")
-        st.caption(f"Faculty Lead: **{course['professor']}** • Select a syllabus lesson below to launch its closed-loop workspace:")
+        st.caption(f"Faculty Lead: **{st.session_state.professor_profile['name']}** • Select a syllabus lesson below:")
         st.write("")
 
         for l_id, lesson in course["lessons"].items():
-            pct, bar_color = compute_lesson_mastery(l_id, lesson)
-            mat_count = len(lesson.get("materials", []))
+            pct, _ = compute_lesson_mastery(course, l_id)
+            lesson_mats = get_lesson_materials(course, l_id)
             with st.container(border=True):
                 c_title, c_prog, c_btn = st.columns([4, 2, 1.5])
                 with c_title:
                     st.markdown(f"#### {lesson['title']}")
-                    st.caption(f"{lesson['summary']} ({mat_count} uploaded materials)")
+                    st.caption(f"{lesson['summary']} ({len(lesson_mats)} assigned materials)")
                 with c_prog:
                     st.markdown(f"**Lesson Mastery: {pct}%**")
                     st.progress(pct / 100.0)
@@ -718,11 +792,16 @@ elif st.session_state.current_role == "student":
                         st.session_state.selected_lesson_id = l_id
                         st.rerun()
 
+    # -----------------------------------------------------
+    # 2C. ACTIVE LESSON WORKSPACE (WITH BACK TO SYLLABUS BUTTON)
+    # -----------------------------------------------------
     else:
+        c_id = st.session_state.selected_student_course_id
+        course = st.session_state.courses[c_id]
         l_id = st.session_state.selected_lesson_id
-        course = st.session_state.course_data
         lesson = course["lessons"][l_id]
-        clustered_text = cluster_lesson_materials(lesson)
+        materials = get_lesson_materials(course, l_id)
+        clustered_text = cluster_lesson_materials(materials)
 
         if l_id not in st.session_state.reviewed_materials:
             st.session_state.reviewed_materials[l_id] = set()
@@ -731,13 +810,18 @@ elif st.session_state.current_role == "student":
                 {
                     "role": "model",
                     "content": (
-                        f"Closed-loop sparring locked to **{lesson['title']}** ({len(lesson['materials'])} clustered materials). "
+                        f"Closed-loop sparring locked to **{lesson['title']}** ({len(materials)} clustered materials). "
                         "Test your thesis premise or ask me to challenge your draft before submitting."
                     ),
                 }
             ]
 
-        pct, thermo_color = compute_lesson_mastery(l_id, lesson)
+        # Back to Syllabus Button
+        if st.button("← Back to Course Syllabus", key="back_to_syllabus"):
+            st.session_state.selected_lesson_id = None
+            st.rerun()
+
+        pct, thermo_color = compute_lesson_mastery(course, l_id)
         top_av, top_title, top_thermo = st.columns([0.6, 3.8, 2.6])
         with top_av:
             st.markdown(
@@ -769,9 +853,11 @@ elif st.session_state.current_role == "student":
 
         with rail_col:
             st.markdown("#### 📂 Lesson Materials")
-            st.caption("Click each uploaded item to review & boost mastery, or download:")
+            st.caption("Assigned by professor (alphabetical). Click to review or download:")
 
-            materials = lesson.get("materials", [])
+            if not materials:
+                st.info("No materials assigned to this lesson yet.")
+
             for idx, mat in enumerate(materials):
                 is_done = mat["id"] in st.session_state.reviewed_materials[l_id]
                 icon = "✅" if is_done else "📄"
@@ -861,7 +947,7 @@ elif st.session_state.current_role == "student":
                 if st.button("Generate Scannable Slides", type="primary", use_container_width=True):
                     with st.spinner("Distilling clustered materials into visual slides..."):
                         st.session_state.slides_cache[l_id] = generate_visual_slides_ai(
-                            lesson, clustered_text, GOOGLE_API_KEY
+                            lesson, materials, clustered_text, GOOGLE_API_KEY
                         )
                         for m in materials:
                             st.session_state.reviewed_materials[l_id].add(m["id"])
@@ -990,6 +1076,7 @@ elif st.session_state.current_role == "student":
                 st.session_state.proof_of_work_log.append({
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "candidate": profile["name"],
+                    "course": course["course_name"],
                     "lesson": lesson["title"],
                     "student_prompt": spar_input,
                     "socratic_challenge": reply,
@@ -998,78 +1085,177 @@ elif st.session_state.current_role == "student":
 
 
 # =========================================================
-# 3. PROFESSOR PORTAL (UPLOAD MATERIALS & AUDIT)
+# 3. PROFESSOR WORKSPACE (MATCHING WIREFRAME)
 # =========================================================
 elif st.session_state.current_role == "professor":
-    course = st.session_state.course_data
-    st.markdown(f"<span class='badge-green'>Faculty Command Center</span>", unsafe_allow_html=True)
-    st.title(f"Professor Workspace — {course['professor']}")
-    st.caption(f"Course: **{course['course_name']}**")
+    prof = st.session_state.professor_profile
 
-    tab_upload, tab_audit = st.tabs(["📚 Manage Lesson Materials & Tasks", "📜 Student Proof-of-Work & Submissions"])
+    # -----------------------------------------------------
+    # 3A. PROFESSOR HOME: FACULTY INFO + COURSE PORTFOLIO
+    # -----------------------------------------------------
+    if st.session_state.selected_prof_course_id is None:
+        if st.button("← Back to Landing", key="back_prof_landing"):
+            st.session_state.current_role = None
+            st.rerun()
 
-    with tab_upload:
-        target_lesson_id = st.selectbox(
-            "Select Lesson to Configure:",
-            options=list(course["lessons"].keys()),
-            format_func=lambda x: course["lessons"][x]["title"],
-        )
-        t_lesson = course["lessons"][target_lesson_id]
-
-        st.subheader("1. Edit Lesson Assignment Task")
-        new_task = st.text_area("Task for the Lesson", value=t_lesson["task"], height=90)
-        if st.button("Update Lesson Task"):
-            st.session_state.course_data["lessons"][target_lesson_id]["task"] = new_task
-            st.success("Lesson task updated for students.")
-
+        st.markdown("<span class='badge-green'>Professor Workspace</span>", unsafe_allow_html=True)
+        st.markdown(f"## {prof['name']}")
+        st.caption(prof["title"])
         st.divider()
-        st.subheader(f"2. Uploaded Materials in {t_lesson['title']} ({len(t_lesson['materials'])} items)")
-        for m in t_lesson["materials"]:
-            st.markdown(f"- **{m['title']}** ({m['type']}) — `{len(m['text'])} chars`")
 
+        st.subheader("Courses Taught at the University")
+        st.caption("Select a course to manage its syllabus lessons, upload materials, or audit student Proof-of-Work:")
         st.write("")
-        st.markdown("#### ➕ Add New Material to This Lesson (No Limit)")
-        with st.form(f"add_mat_{target_lesson_id}"):
-            m_title = st.text_input("Material Title (e.g., Harvard Business Review Case Study)")
-            m_type = st.selectbox("Material Category", ["Core Reading", "Case Study", "Lecture Note", "Framework"])
-            uploaded_file = st.file_uploader("Upload TXT/MD file (or paste text below)", type=["txt", "md"])
-            m_text = st.text_area("Material Content (Clustered automatically into Podcast, Slides & Sparring)", height=130)
 
-            if st.form_submit_button("Upload & Cluster into Lesson", type="primary"):
-                final_text = m_text.strip()
-                fname = f"{m_title.replace(' ', '_')}.txt" if m_title else "Uploaded_Material.txt"
-                if uploaded_file is not None:
-                    final_text = uploaded_file.read().decode("utf-8", errors="ignore")
-                    fname = uploaded_file.name
+        for cid, cdata in st.session_state.courses.items():
+            l_count = len(cdata["lessons"])
+            m_count = len(cdata["materials_repo"])
+            with st.container(border=True):
+                cc1, cc2 = st.columns([4.5, 1.5])
+                with cc1:
+                    st.markdown(f"<span class='badge-blue'>{cdata['code']}</span>", unsafe_allow_html=True)
+                    st.markdown(f"### {cdata['course_name']}")
+                    st.caption(f"{cdata['description']} • **{l_count} Lessons** | **{m_count} Course Materials**")
+                with cc2:
+                    st.write("")
+                    st.write("")
+                    if st.button("Open Course →", key=f"prof_open_{cid}", type="primary", use_container_width=True):
+                        st.session_state.selected_prof_course_id = cid
+                        st.rerun()
 
-                if m_title and final_text:
-                    new_id = f"MAT-{int(time.time())}"
-                    st.session_state.course_data["lessons"][target_lesson_id]["materials"].append({
-                        "id": new_id,
-                        "title": m_title,
-                        "type": m_type,
-                        "filename": fname,
-                        "text": final_text,
-                    })
-                    st.success(f"Added '{m_title}' to {t_lesson['title']}!")
-                    st.rerun()
-                else:
-                    st.warning("Please provide both a title and text/file content.")
+    # -----------------------------------------------------
+    # 3B. INSIDE A COURSE: LESSONS (LEFT) & MATERIALS (RIGHT)
+    # -----------------------------------------------------
+    else:
+        cid = st.session_state.selected_prof_course_id
+        course = st.session_state.courses[cid]
 
-    with tab_audit:
-        st.subheader("Submitted Lesson Answers")
-        for l_id, lesson in course["lessons"].items():
-            ans = st.session_state.lesson_answers.get(l_id)
-            pct, _ = compute_lesson_mastery(l_id, lesson)
-            with st.expander(f"{lesson['title']} — Mastery: {pct}% | Submitted: {'✅ Yes' if ans and ans.get('submitted') else '⏳ Draft'}"):
-                if ans and ans.get("text"):
-                    st.write(ans["text"])
-                else:
-                    st.info("No answer drafted yet.")
+        if st.button("← Back to Courses", key="back_prof_courses"):
+            st.session_state.selected_prof_course_id = None
+            st.rerun()
 
-        st.divider()
-        st.subheader("Chronological Socratic Proof-of-Work Trail")
-        if st.session_state.proof_of_work_log:
-            st.dataframe(st.session_state.proof_of_work_log, use_container_width=True)
-        else:
-            st.info("No student sparring turns recorded yet.")
+        st.markdown(f"<span class='badge-blue'>{course['code']}</span>", unsafe_allow_html=True)
+        st.markdown(f"## {course['course_name']}")
+
+        tab_builder, tab_audit = st.tabs([
+            "🗂️ Course Lessons & Materials Mapper",
+            "📜 Student Proof-of-Work & Submissions"
+        ])
+
+        with tab_builder:
+            col_lessons, col_materials = st.columns([1.25, 1.45], gap="large")
+
+            # LEFT COLUMN: COURSE'S LESSONS
+            with col_lessons:
+                st.markdown("### 📘 Course's Lessons")
+                st.caption("Each lesson clusters all materials assigned to it from the right panel:")
+
+                for l_id, lesson in course["lessons"].items():
+                    assigned_mats = get_lesson_materials(course, l_id)
+                    with st.container(border=True):
+                        st.markdown(f"#### {lesson['title']}")
+                        st.caption(lesson["summary"])
+                        st.markdown(f"**Clustered Materials ({len(assigned_mats)}):**")
+                        if assigned_mats:
+                            for am in assigned_mats:
+                                st.markdown(f"- 📄 {am['title']}")
+                        else:
+                            st.caption("_No materials assigned yet._")
+
+                        with st.expander("✏️ Edit Lesson Task"):
+                            updated_task = st.text_area(
+                                "Task for the Lesson",
+                                value=lesson["task"],
+                                key=f"edit_task_{cid}_{l_id}",
+                                height=90,
+                            )
+                            if st.button("Save Task", key=f"save_task_{cid}_{l_id}"):
+                                st.session_state.courses[cid]["lessons"][l_id]["task"] = updated_task
+                                st.success("Task updated!")
+                                st.rerun()
+
+            # RIGHT COLUMN: COURSE'S MATERIALS (ALPHABETICAL + UPLOAD + ASSIGN TO LESSON)
+            with col_materials:
+                hdr_m, btn_m = st.columns([3, 1.5])
+                with hdr_m:
+                    st.markdown("### 📚 Course's Materials")
+                    st.caption("Sorted alphabetically (A–Z). Assign to any lesson:")
+                with btn_m:
+                    with st.popover("➕ Upload Material", use_container_width=True):
+                        st.markdown("#### Upload New Course Material")
+                        new_m_title = st.text_input("Material Title", key=f"new_mt_{cid}")
+                        new_m_type = st.selectbox(
+                            "Category",
+                            ["Core Reading", "Case Study", "Lecture Note", "Framework"],
+                            key=f"new_mtype_{cid}",
+                        )
+                        up_file = st.file_uploader("Upload TXT/MD File", type=["txt", "md"], key=f"up_f_{cid}")
+                        new_m_text = st.text_area("Or Paste Content", height=110, key=f"new_mtxt_{cid}")
+                        default_lessons = st.multiselect(
+                            "Assign immediately to lesson(s):",
+                            options=list(course["lessons"].keys()),
+                            format_func=lambda x: course["lessons"][x]["title"],
+                            key=f"new_massign_{cid}",
+                        )
+                        if st.button("Add to Course", type="primary", key=f"add_m_btn_{cid}"):
+                            content_str = new_m_text.strip()
+                            fname = f"{new_m_title.replace(' ', '_')}.txt" if new_m_title else "Material.txt"
+                            if up_file is not None:
+                                content_str = up_file.read().decode("utf-8", errors="ignore")
+                                fname = up_file.name
+
+                            if new_m_title and content_str:
+                                st.session_state.courses[cid]["materials_repo"].append({
+                                    "id": f"MAT-{int(time.time())}",
+                                    "title": new_m_title.strip(),
+                                    "type": new_m_type,
+                                    "filename": fname,
+                                    "assigned_lessons": default_lessons,
+                                    "text": content_str,
+                                })
+                                st.success("Material uploaded!")
+                                st.rerun()
+                            else:
+                                st.warning("Provide a title and content.")
+
+                # Alphabetically sorted materials list
+                sorted_repo = sorted(course["materials_repo"], key=lambda x: x["title"].lower())
+                lesson_ids = list(course["lessons"].keys())
+
+                for m_idx, mat in enumerate(sorted_repo):
+                    with st.container(border=True):
+                        st.markdown(f"**📄 {mat['title']}** `{mat['type']}`")
+                        st.caption(mat["text"][:140] + ("..." if len(mat["text"]) > 140 else ""))
+
+                        # One-click assignment pills/multiselect to cluster into any lesson
+                        current_assigned = [lid for lid in mat.get("assigned_lessons", []) if lid in lesson_ids]
+                        new_assigned = st.multiselect(
+                            "Assigned to Lesson(s):",
+                            options=lesson_ids,
+                            default=current_assigned,
+                            format_func=lambda x: course["lessons"][x]["title"],
+                            key=f"assign_{cid}_{mat['id']}",
+                        )
+                        if set(new_assigned) != set(current_assigned):
+                            for orig_m in st.session_state.courses[cid]["materials_repo"]:
+                                if orig_m["id"] == mat["id"]:
+                                    orig_m["assigned_lessons"] = new_assigned
+                            st.rerun()
+
+        with tab_audit:
+            st.subheader("Submitted Lesson Answers")
+            for l_id, lesson in course["lessons"].items():
+                ans = st.session_state.lesson_answers.get(l_id)
+                pct, _ = compute_lesson_mastery(course, l_id)
+                with st.expander(f"{lesson['title']} — Mastery: {pct}% | Submitted: {'✅ Yes' if ans and ans.get('submitted') else '⏳ Draft'}"):
+                    if ans and ans.get("text"):
+                        st.write(ans["text"])
+                    else:
+                        st.info("No answer drafted yet.")
+
+            st.divider()
+            st.subheader("Chronological Socratic Proof-of-Work Trail")
+            if st.session_state.proof_of_work_log:
+                st.dataframe(st.session_state.proof_of_work_log, use_container_width=True)
+            else:
+                st.info("No student sparring turns recorded yet.")
