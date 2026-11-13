@@ -340,8 +340,102 @@ STRICT ARCHITECTURAL SAFEGUARDS:
 # ---------------------------------------------------------
 def generate_podcast_pipeline(material_text: str, gemini_key: str, eleven_key: str, progress_fn=None) -> Tuple[bytes, List[Dict]]:
     if progress_fn:
-        progress_fn("Discovering active Gemini models on your Tier 1 key...")
+        progress_fn("Drafting fast executive dialogue...")
 
+    models_to_try = get_available_gemini_models(gemini_key)[:3]
+    processed_text = material_text[:2000] if len(material_text) > 2000 else material_text
+
+    # Plain-text pipe format avoids slow JSON schema decoding on congested servers
+    script_prompt = f"""
+Convert this Steinbeis course text into a 4-line executive podcast dialogue between Host_A and Host_B.
+Host_A frames the practical dilemma. Host_B gives the theoretical breakdown.
+Keep each line under 30 words. Use ONLY this exact line-by-line format with no extra text:
+Host_A | [Line 1]
+Host_B | [Line 2]
+Host_A | [Line 3]
+Host_B | [Line 4]
+
+Text:
+{processed_text}
+"""
+    headers = {"Content-Type": "application/json", "x-goog-api-key": gemini_key}
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": script_prompt}]}],
+        "generationConfig": {
+            "temperature": 0.4,
+            "maxOutputTokens": 350,
+        }
+    }
+
+    script = []
+    error_log = []
+
+    for model_path in models_to_try:
+        endpoint = f"{BASE_GEMINI_URL}/{model_path}:generateContent"
+        for attempt in range(2):
+            try:
+                if progress_fn:
+                    progress_fn(f"Generating script with {model_path}...")
+                resp = requests.post(endpoint, headers=headers, json=payload, timeout=25)
+                if resp.status_code == 200:
+                    raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    parsed = []
+                    for line in raw_text.strip().splitlines():
+                        if "|" in line:
+                            speaker_raw, dialogue = line.split("|", 1)
+                            speaker = "Host_B" if "B" in speaker_raw else "Host_A"
+                            clean_line = dialogue.strip().strip('"').strip("*")
+                            if clean_line:
+                                parsed.append({"speaker": speaker, "text": clean_line})
+                    if parsed:
+                        script = parsed
+                        break
+                elif resp.status_code in (503, 429, 500):
+                    time.sleep(2)
+                    error_log.append(f"{model_path} -> {resp.status_code}")
+                else:
+                    error_log.append(f"{model_path} -> {resp.status_code}")
+                    break
+            except requests.exceptions.RequestException:
+                error_log.append(f"{model_path} -> timeout")
+        if script:
+            break
+
+    if not script:
+        raise RuntimeError(f"Script generation failed. Trace: {' | '.join(error_log)}")
+
+    audio_buffer = io.BytesIO()
+    total_turns = len(script)
+
+    for i, turn in enumerate(script):
+        speaker = turn.get("speaker", "Host_A")
+        text = turn.get("text", "")
+        v_id = VOICE_HOST_A if speaker == "Host_A" else VOICE_HOST_B
+
+        if progress_fn:
+            progress_fn(f"Synthesizing voice turn {i + 1}/{total_turns} ({speaker})...")
+
+        tts_resp = requests.post(
+            f"{ELEVENLABS_TTS_URL}/{v_id}",
+            headers={
+                "Accept": "audio/mpeg",
+                "Content-Type": "application/json",
+                "xi-api-key": eleven_key,
+            },
+            json={
+                "text": text,
+                "model_id": "eleven_turbo_v2_5",
+                "voice_settings": {"stability": 0.45, "similarity_boost": 0.75},
+            },
+            timeout=30,
+        )
+        if tts_resp.status_code == 200:
+            audio_buffer.write(tts_resp.content)
+        else:
+            raise RuntimeError(f"ElevenLabs error ({tts_resp.status_code}): {tts_resp.text}")
+
+    audio_buffer.seek(0)
+    return audio_buffer.read(), script
     models_to_try = get_available_gemini_models(gemini_key)[:3]
     processed_text = material_text[:2500] if len(material_text) > 2500 else material_text
 
